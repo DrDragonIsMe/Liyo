@@ -1,0 +1,26 @@
+{
+  "name": "liyo-saas",
+  "version": "1.0.0",
+  "description": "智能试卷解析与伴读学习系统",
+  "main": "server/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd server && npm run dev",
+    "client": "cd client && npm run dev",
+    "build": "cd client && npm run build",
+    "start": "cd server && npm start",
+    "install-all": "npm install && cd server && npm install && cd ../client && npm install"
+  },
+  "keywords": [
+    "education",
+    "ocr",
+    "ai",
+    "learning",
+    "saas"
+  ],
+  "author": "Liyo Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
