@@ -1,2 +1,2 @@
-# Liyo
-A SaaS system which enable a  Learn-BUDDY for high-middle School
+# Studdy
+A SaaS system which enable a  Studdy-Assist for high-middle School
