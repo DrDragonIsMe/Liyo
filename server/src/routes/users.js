@@ -102,6 +102,40 @@ router.get('/', adminMiddleware, [
 // @route   GET /api/users/:id
 // @access  Private
 router.get('/:id', asyncHandler(async (req, res) => {
+  // 处理demo用户
+  if (req.params.id === 'demo-user') {
+    return res.json({
+      success: true,
+      data: {
+        user: {
+          id: 'demo-user',
+          name: '演示用户',
+          email: 'demo@example.com',
+          avatar: null,
+          role: 'student',
+          school: '演示学校',
+          grade: '高二',
+          subjects: ['数学', '物理', '化学'],
+          preferences: {
+            theme: 'light',
+            notifications: true,
+            autoSave: true
+          },
+          stats: {
+            studyRecords: 15,
+            totalStudyTime: 120,
+            averageScore: 85,
+            completionRate: 80
+          },
+          achievements: ['初学者', '勤奋学习者'],
+          isActive: true,
+          lastLogin: new Date(),
+          createdAt: new Date('2024-01-01')
+        }
+      }
+    })
+  }
+
   const user = await User.findById(req.params.id).select('-password')
   
   if (!user) {

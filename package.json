@@ -1,5 +1,5 @@
 {
-  "name": "liyo-saas",
+  "name": "studdy-saas",
   "version": "1.0.0",
   "description": "智能试卷解析与伴读学习系统",
   "main": "server/index.js",
@@ -9,7 +9,10 @@
     "client": "cd client && npm run dev",
     "build": "cd client && npm run build",
     "start": "cd server && npm start",
-    "install-all": "npm install && cd server && npm install && cd ../client && npm install"
+    "install-all": "npm install && cd server && npm install && cd ../client && npm install",
+    "docs:update": "node install/update-docs.js",
+    "docs:validate": "node install/update-docs.js --validate-only",
+    "install:setup": "chmod +x install/install.sh"
   },
   "keywords": [
     "education",
@@ -18,7 +21,7 @@
     "learning",
     "saas"
   ],
-  "author": "Liyo Team",
+  "author": "Studdy Team",
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^8.2.2"

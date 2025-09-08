@@ -16,6 +16,7 @@ import studyRoutes from './src/routes/study.js'
 import ocrRoutes from './src/routes/ocr.js'
 import aiRoutes from './src/routes/ai.js'
 import learningPathRoutes from './src/routes/learningPath.js'
+import knowledgePointRoutes from './src/routes/knowledgePoints.js'
 
 // 中间件导入
 import { errorHandler } from './src/middleware/errorHandler.js'
@@ -73,8 +74,9 @@ app.use('/api/papers', authMiddleware, paperRoutes)
 app.use('/api/questions', authMiddleware, questionRoutes)
 app.use('/api/study', authMiddleware, studyRoutes)
 app.use('/api/ocr', authMiddleware, ocrRoutes)
-app.use('/api/ai', authMiddleware, aiRoutes)
+app.use('/api/ai', aiRoutes)
 app.use('/api/learning-paths', authMiddleware, learningPathRoutes)
+app.use('/api/knowledge-points', knowledgePointRoutes)
 
 // 错误处理中间件
 app.use(notFound)
@@ -83,7 +85,7 @@ app.use(errorHandler)
 // 数据库连接
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/liyo')
+    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/studdy')
     console.log(`MongoDB Connected: ${conn.connection.host}`)
   } catch (error) {
     console.error('数据库连接失败:', error.message)

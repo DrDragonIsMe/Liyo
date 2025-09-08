@@ -39,7 +39,7 @@ const HomePage = () => {
           <div className="flex justify-between h-16">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <h1 className="text-2xl font-bold text-primary-600">Liyo</h1>
+                <h1 className="text-2xl font-bold text-primary-600">Studdy</h1>
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -163,7 +163,7 @@ const HomePage = () => {
         <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 md:flex md:items-center md:justify-between lg:px-8">
           <div className="flex justify-center space-x-6 md:order-2">
             <p className="text-gray-400 text-sm">
-              © 2024 Liyo. 保留所有权利。
+              © 2024 Studdy. 保留所有权利。
             </p>
           </div>
           <div className="mt-8 md:mt-0 md:order-1">

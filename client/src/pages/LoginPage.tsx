@@ -57,7 +57,7 @@ const LoginPage = () => {
             <h2 className="text-2xl font-bold text-primary-600">L</h2>
           </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            登录到 Liyo
+            登录到 Studdy
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             还没有账户？{' '}

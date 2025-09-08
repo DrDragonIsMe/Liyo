@@ -10,6 +10,7 @@ import {
   AcademicCapIcon,
 } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
+import KnowledgePointDetail from '../components/KnowledgePointDetail'
 
 interface Question {
   id: string
@@ -38,6 +39,7 @@ const StudyPage = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [selectedKnowledgePoint, setSelectedKnowledgePoint] = useState<string | null>(null)
   const [studySession, setStudySession] = useState({
     questionsAnswered: 0,
     correctAnswers: 0,
@@ -83,9 +85,91 @@ const StudyPage = () => {
   }, [])
 
   useEffect(() => {
+    // 初始化聊天消息和题目分析
+    if (currentQuestion) {
+      const welcomeMessage: ChatMessage = {
+        id: 'welcome',
+        type: 'ai',
+        content: '你好！我是你的AI学习伴侣。我会实时分析你的解题思路，并提供个性化的学习建议。',
+        timestamp: new Date(),
+      }
+      
+      const questionAnalysis: ChatMessage = {
+        id: 'initial-analysis',
+        type: 'ai', 
+        content: `📚 当前题目分析：\n\n这是一道${currentQuestion.subject}的${getDifficultyText(currentQuestion.difficulty)}题目。\n\n主要考查知识点：${currentQuestion.knowledgePoints.join('、')}\n\n建议解题思路：仔细阅读题目，识别关键信息，运用相关知识点进行分析。开始答题时我会实时为你提供建议！`,
+        timestamp: new Date(),
+      }
+      
+      setChatMessages([welcomeMessage, questionAnalysis])
+    }
+  }, [currentQuestion])
+
+  useEffect(() => {
     // 自动滚动到聊天底部
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages])
+
+  // 实时分析用户答题思路
+  const analyzeUserProgress = async () => {
+    if (!currentQuestion || isAnswered) return
+    
+    const currentAnswer = currentQuestion.options ? selectedOption : userAnswer
+    if (!currentAnswer || currentAnswer.trim() === '') return
+    
+    try {
+      const response = await fetch('http://localhost:5001/api/ai/analyze-progress', {
+         method: 'POST',
+         headers: {
+           'Content-Type': 'application/json',
+           'Authorization': 'Bearer demo-token' // 临时使用演示token
+         },
+         body: JSON.stringify({
+           question: {
+             content: currentQuestion.content,
+             subject: currentQuestion.subject,
+             difficulty: currentQuestion.difficulty,
+             options: currentQuestion.options,
+             correctAnswer: currentQuestion.correctAnswer,
+             knowledgePoints: currentQuestion.knowledgePoints
+           },
+           userAnswer: currentAnswer,
+           isPartialAnswer: !isAnswered
+         })
+       })
+      
+      if (response.ok) {
+        const data = await response.json()
+        if (data.suggestion && data.suggestion.trim()) {
+          const suggestionMessage: ChatMessage = {
+            id: `suggestion-${Date.now()}`,
+            type: 'ai',
+            content: `💡 实时建议：${data.suggestion}`,
+            timestamp: new Date(),
+          }
+          setChatMessages(prev => {
+            // 避免重复添加相同的建议
+            const lastMessage = prev[prev.length - 1]
+            if (lastMessage && lastMessage.content.includes('💡 实时建议：')) {
+              return [...prev.slice(0, -1), suggestionMessage]
+            }
+            return [...prev, suggestionMessage]
+          })
+        }
+      }
+    } catch (error) {
+      console.error('分析用户进度错误:', error)
+    }
+  }
+  
+  // 监控用户答案变化
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      analyzeUserProgress()
+    }, 2000) // 用户停止输入2秒后分析
+    
+    return () => clearTimeout(timer)
+  }, [selectedOption, userAnswer, currentQuestion])
 
   const loadNextQuestion = () => {
     const randomIndex = Math.floor(Math.random() * sampleQuestions.length)
@@ -96,14 +180,14 @@ const StudyPage = () => {
     setIsAnswered(false)
     setShowExplanation(false)
     
-    // 添加系统消息
-    const systemMessage: ChatMessage = {
+    // 添加新题目分析消息
+    const analysisMessage: ChatMessage = {
       id: Date.now().toString(),
-      type: 'system',
-      content: `开始新题目：${question.subject} - ${question.difficulty === 'easy' ? '简单' : question.difficulty === 'medium' ? '中等' : '困难'}`,
+      type: 'ai',
+      content: `📚 新题目分析：\n\n这是一道${question.subject}的${getDifficultyText(question.difficulty)}题目。\n\n主要考查知识点：${question.knowledgePoints.join('、')}\n\n建议解题思路：仔细阅读题目，识别关键信息，运用相关知识点进行分析。有问题随时问我！`,
       timestamp: new Date(),
     }
-    setChatMessages(prev => [...prev, systemMessage])
+    setChatMessages(prev => [...prev, analysisMessage])
   }
 
   const handleSubmitAnswer = () => {
@@ -168,24 +252,56 @@ const StudyPage = () => {
     setChatInput('')
     setIsLoading(true)
     
-    // 模拟AI回复
-    setTimeout(() => {
+    try {
+      // 构建包含当前题目信息的上下文
+      const questionContext = {
+        content: currentQuestion?.content,
+        subject: currentQuestion?.subject,
+        difficulty: currentQuestion?.difficulty,
+        options: currentQuestion?.options,
+        knowledgePoints: currentQuestion?.knowledgePoints,
+        userAnswer: currentQuestion?.options ? selectedOption : userAnswer,
+        isAnswered: isAnswered
+      }
+      
+      const response = await fetch('http://localhost:5001/api/ai/chat', {
+         method: 'POST',
+         headers: {
+           'Content-Type': 'application/json',
+           'Authorization': 'Bearer demo-token' // 临时使用演示token
+         },
+         body: JSON.stringify({
+           message: userMessage.content,
+           questionContext: questionContext,
+           chatHistory: chatMessages.slice(-5) // 只发送最近5条消息作为上下文
+         })
+       })
+      
+      if (!response.ok) {
+        throw new Error('AI服务暂时不可用')
+      }
+      
+      const data = await response.json()
+      
       const aiMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        content: `这是一个很好的问题！让我来帮你分析一下...
-
-基于你的提问，我建议你关注以下几个要点：
-1. 理解题目的核心概念
-2. 掌握相关的解题方法
-3. 多做类似的练习题
-
-你还有其他疑问吗？`,
+        content: data.response,
         timestamp: new Date(),
       }
       setChatMessages(prev => [...prev, aiMessage])
+    } catch (error) {
+      console.error('AI聊天错误:', error)
+      const errorMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        type: 'ai',
+        content: '抱歉，AI服务暂时不可用，请稍后再试。',
+        timestamp: new Date(),
+      }
+      setChatMessages(prev => [...prev, errorMessage])
+    } finally {
       setIsLoading(false)
-    }, 1000 + Math.random() * 2000)
+    }
   }
 
   const getDifficultyColor = (difficulty: string) => {
@@ -359,9 +475,13 @@ const StudyPage = () => {
                 <h4 className="text-sm font-medium text-blue-900 mb-1">相关知识点：</h4>
                 <div className="flex flex-wrap gap-2">
                   {currentQuestion.knowledgePoints.map((point, index) => (
-                    <span key={index} className="px-2 py-1 bg-blue-200 text-blue-800 text-xs rounded-full">
+                    <button
+                      key={index}
+                      onClick={() => setSelectedKnowledgePoint(point)}
+                      className="px-2 py-1 bg-blue-200 hover:bg-blue-300 text-blue-800 text-xs rounded-full transition-colors cursor-pointer border-none outline-none focus:ring-2 focus:ring-blue-400"
+                    >
                       {point}
-                    </span>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -443,6 +563,24 @@ const StudyPage = () => {
           </div>
         </div>
       </div>
+      
+      {/* 知识点详情弹窗 */}
+       {selectedKnowledgePoint && (
+         <KnowledgePointDetail
+           knowledgePoint={selectedKnowledgePoint}
+           subject={currentQuestion.subject}
+           onClose={() => setSelectedKnowledgePoint(null)}
+           onAddToChat={(content) => {
+             const newMessage: ChatMessage = {
+               id: Date.now().toString(),
+               type: 'system',
+               content,
+               timestamp: new Date()
+             }
+             setChatMessages(prev => [...prev, newMessage])
+           }}
+         />
+       )}
     </div>
   )
 }

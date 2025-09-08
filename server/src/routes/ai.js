@@ -1,20 +1,20 @@
 import express from 'express'
 import { body, query, validationResult } from 'express-validator'
 import { asyncHandler } from '../middleware/errorHandler.js'
-import { authMiddleware } from '../middleware/auth.js'
+import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js'
 import aiService from '../services/aiService.js'
 import StudyRecord from '../models/StudyRecord.js'
 import Question from '../models/Question.js'
 
 const router = express.Router()
 
-// 所有AI路由都需要身份验证
-router.use(authMiddleware)
+// AI聊天和分析路由使用可选身份验证，其他路由需要强制身份验证
+// router.use(authMiddleware)
 
 // @desc    获取个性化学习建议
 // @route   GET /api/ai/study-advice
 // @access  Private
-router.get('/study-advice', asyncHandler(async (req, res) => {
+router.get('/study-advice', authMiddleware, asyncHandler(async (req, res) => {
   // 获取用户最近的学习数据
   const recentRecords = await StudyRecord.find({ user: req.user.id })
     .sort({ createdAt: -1 })
@@ -73,7 +73,7 @@ router.get('/study-advice', asyncHandler(async (req, res) => {
 // @desc    智能答疑
 // @route   POST /api/ai/ask-question
 // @access  Private
-router.post('/ask-question', [
+router.post('/ask-question', authMiddleware, [
   body('question')
     .trim()
     .isLength({ min: 5, max: 500 })
@@ -141,10 +141,10 @@ router.post('/ask-question', [
   })
 }))
 
-// @desc    错题分析
+// @desc    分析错误答案
 // @route   POST /api/ai/analyze-wrong-answer
 // @access  Private
-router.post('/analyze-wrong-answer', [
+router.post('/analyze-wrong-answer', authMiddleware, [
   body('questionId')
     .isMongoId()
     .withMessage('题目ID格式不正确'),
@@ -237,7 +237,7 @@ router.post('/analyze-wrong-answer', [
 // @desc    生成学习路径
 // @route   POST /api/ai/learning-path
 // @access  Private
-router.post('/learning-path', [
+router.post('/learning-path', authMiddleware, [
   body('goals')
     .isObject()
     .withMessage('学习目标必须是对象格式'),
@@ -283,10 +283,10 @@ router.post('/learning-path', [
   })
 }))
 
-// @desc    智能题目推荐
+// @desc    推荐题目
 // @route   GET /api/ai/recommend-questions
 // @access  Private
-router.get('/recommend-questions', [
+router.get('/recommend-questions', authMiddleware, [
   query('subject')
     .optional()
     .trim()
@@ -346,7 +346,7 @@ router.get('/recommend-questions', [
 // @desc    生成学习报告
 // @route   GET /api/ai/study-report
 // @access  Private
-router.get('/study-report', [
+router.get('/study-report', authMiddleware, [
   query('days')
     .optional()
     .isInt({ min: 1, max: 365 })
@@ -384,10 +384,10 @@ router.get('/study-report', [
   })
 }))
 
-// @desc    实时学习指导
+// @desc    学习指导
 // @route   POST /api/ai/learning-guidance
 // @access  Private
-router.post('/learning-guidance', [
+router.post('/learning-guidance', authMiddleware, [
   body('studyRecordId')
     .isMongoId()
     .withMessage('学习记录ID格式不正确'),
@@ -492,7 +492,7 @@ router.post('/learning-guidance', [
 // @desc    获取AI交互历史
 // @route   GET /api/ai/interactions/:studyRecordId
 // @access  Private
-router.get('/interactions/:studyRecordId', asyncHandler(async (req, res) => {
+router.get('/interactions/:studyRecordId', authMiddleware, asyncHandler(async (req, res) => {
   const studyRecord = await StudyRecord.findById(req.params.studyRecordId)
     .populate('aiInteractions.question', 'content type')
   
@@ -522,6 +522,158 @@ router.get('/interactions/:studyRecordId', asyncHandler(async (req, res) => {
         timestamp: interaction.timestamp
       }))
     }
+  })
+}))
+
+// @desc    AI聊天接口
+// @route   POST /api/ai/chat
+// @access  Public (可选身份验证)
+router.post('/chat', optionalAuthMiddleware, [
+  body('message')
+    .trim()
+    .isLength({ min: 1, max: 500 })
+    .withMessage('消息内容不能为空且不能超过500个字符'),
+  body('questionContext')
+    .optional()
+    .isObject()
+    .withMessage('题目上下文必须是对象格式'),
+  body('chatHistory')
+    .optional()
+    .isArray({ max: 10 })
+    .withMessage('聊天历史不能超过10条消息')
+], asyncHandler(async (req, res) => {
+  // 检查验证错误
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      errors: errors.array()
+    })
+  }
+
+  const { message, questionContext, chatHistory } = req.body
+  
+  // 构建上下文提示
+  let contextPrompt = '你是一个专业的AI学习伴侣，专门帮助学生学习和解题。'
+  
+  if (questionContext) {
+    contextPrompt += `\n\n当前题目信息：
+    - 科目：${questionContext.subject}
+    - 难度：${questionContext.difficulty}
+    - 题目内容：${questionContext.content}
+    - 知识点：${questionContext.knowledgePoints?.join('、')}`
+    
+    if (questionContext.options) {
+      contextPrompt += `\n- 选项：${questionContext.options.join('; ')}`
+    }
+    
+    if (questionContext.userAnswer) {
+      contextPrompt += `\n- 用户当前答案：${questionContext.userAnswer}`
+      contextPrompt += `\n- 是否已提交：${questionContext.isAnswered ? '是' : '否'}`
+    }
+  }
+  
+  contextPrompt += `\n\n请基于以上题目信息回答学生的问题。你的回答应该：
+  1. 直接针对当前题目，无需重复描述题目内容
+  2. 提供具体的解题思路和方法
+  3. 解释相关知识点
+  4. 语言简洁明了，适合学生理解
+  5. 如果学生答错了，要耐心指导正确的思路
+  
+  学生的问题：${message}`
+  
+  const userId = req.user?.id || 'demo-user' // 使用演示用户ID
+  const result = await aiService.generateStudyAdvice(userId, { prompt: contextPrompt })
+  
+  if (!result.success) {
+    return res.status(500).json({
+      success: false,
+      error: result.error || 'AI服务暂时不可用，请稍后再试'
+    })
+  }
+  
+  res.json({
+    success: true,
+    response: result.advice
+  })
+}))
+
+// @desc    实时分析用户答题进度
+// @route   POST /api/ai/analyze-progress
+// @access  Public (可选身份验证)
+router.post('/analyze-progress', optionalAuthMiddleware, [
+  body('question')
+    .isObject()
+    .withMessage('题目信息必须是对象格式'),
+  body('question.content')
+    .trim()
+    .isLength({ min: 1 })
+    .withMessage('题目内容不能为空'),
+  body('userAnswer')
+    .trim()
+    .isLength({ min: 1 })
+    .withMessage('用户答案不能为空'),
+  body('isPartialAnswer')
+    .isBoolean()
+    .withMessage('答题状态必须是布尔值')
+], asyncHandler(async (req, res) => {
+  // 检查验证错误
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      errors: errors.array()
+    })
+  }
+
+  const { question, userAnswer, isPartialAnswer } = req.body
+  
+  // 构建分析提示
+  let analysisPrompt = `你是一个AI学习伴侣，正在实时分析学生的答题过程。\n\n题目信息：
+  - 科目：${question.subject}
+  - 难度：${question.difficulty}
+  - 题目：${question.content}
+  - 知识点：${question.knowledgePoints?.join('、')}`
+  
+  if (question.options) {
+    analysisPrompt += `\n- 选项：${question.options.join('; ')}
+  - 正确答案：${question.correctAnswer}`
+  }
+  
+  analysisPrompt += `\n\n学生当前答案：${userAnswer}
+  答题状态：${isPartialAnswer ? '正在作答' : '已提交'}`
+  
+  if (isPartialAnswer) {
+    analysisPrompt += `\n\n请分析学生的答题思路，并提供简短的实时建议（50字以内）：
+    1. 如果答题方向正确，给予鼓励和进一步提示
+    2. 如果答题方向有误，温和地指出问题并给出正确思路
+    3. 如果答案不完整，提示需要补充的要点
+    4. 语言要简洁、友好、具有指导性
+    
+    只返回建议内容，不要包含其他说明。如果当前答案合理无需建议，返回空字符串。`
+  } else {
+    // 已提交答案的分析
+    const isCorrect = question.options ? 
+      userAnswer === question.correctAnswer : 
+      true // 主观题暂时认为合理
+      
+    analysisPrompt += `\n\n请分析学生的最终答案并给出反馈（100字以内）：
+    ${isCorrect ? '答案正确，请给出鼓励和知识点总结' : '答案有误，请指出错误并解释正确思路'}`
+  }
+  
+  const userId = req.user?.id || 'demo-user' // 使用演示用户ID
+  const result = await aiService.generateStudyAdvice(userId, { prompt: analysisPrompt })
+  
+  if (!result.success) {
+    return res.status(500).json({
+      success: false,
+      error: result.error || '分析服务暂时不可用'
+    })
+  }
+  
+  res.json({
+    success: true,
+    suggestion: result.advice?.trim() || ''
   })
 }))
 

@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:3000/api';
+const API_BASE_URL = 'http://localhost:5001/api';
 
 interface RequestOptions {
   method?: string;
@@ -24,7 +24,7 @@ class ApiClient {
     };
 
     // Add auth token if available
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token') || 'demo-token';
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

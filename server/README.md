@@ -1,4 +1,4 @@
-# Liyo 后端服务
+# Studdy 后端服务
 
 基于 Node.js + Express + MongoDB 的智能学习平台后端服务，提供试卷管理、OCR识别、AI智能伴读等功能。
 
@@ -81,7 +81,7 @@ server/
 1. **克隆项目**
    ```bash
    git clone <repository-url>
-   cd liyo/server
+   cd studdy/server
    ```
 
 2. **安装依赖**
@@ -97,7 +97,7 @@ server/
    编辑 `.env` 文件，配置以下必要参数：
    ```env
    # 数据库
-   MONGODB_URI=mongodb://localhost:27017/liyo
+   MONGODB_URI=mongodb://localhost:27017/studdy
    
    # JWT密钥
    JWT_SECRET=your-super-secret-jwt-key-here
@@ -328,18 +328,18 @@ Content-Type: application/json
 
 1. **构建镜像**
    ```bash
-   docker build -t liyo-server .
+   docker build -t studdy-server .
    ```
 
 2. **运行容器**
    ```bash
    docker run -d \
-     --name liyo-server \
+     --name studdy-server \
      -p 5000:5000 \
-     -e MONGODB_URI=mongodb://mongo:27017/liyo \
+     -e MONGODB_URI=mongodb://mongo:27017/studdy \
      -e JWT_SECRET=your-secret \
      -e AZURE_OPENAI_API_KEY=your-key \
-     liyo-server
+     studdy-server
    ```
 
 ### PM2 部署
@@ -351,7 +351,7 @@ Content-Type: application/json
 
 2. **启动应用**
    ```bash
-   pm2 start index.js --name liyo-server
+   pm2 start index.js --name studdy-server
    ```
 
 3. **设置开机自启**
@@ -384,7 +384,7 @@ npm run test:coverage
 
 ```bash
 # 开启调试模式
-DEBUG=liyo:* npm run dev
+DEBUG=studdy:* npm run dev
 ```
 
 ## 常见问题

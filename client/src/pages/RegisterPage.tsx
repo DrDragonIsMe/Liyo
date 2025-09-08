@@ -71,7 +71,7 @@ const RegisterPage = () => {
             <h2 className="text-2xl font-bold text-primary-600">L</h2>
           </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            注册 Liyo 账户
+            注册 Studdy 账户
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             已有账户？{' '}

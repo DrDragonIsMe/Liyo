@@ -3,18 +3,30 @@ import StudyRecord from '../models/StudyRecord.js'
 import Question from '../models/Question.js'
 import User from '../models/User.js'
 
-// 初始化OpenAI客户端
+// 延迟初始化Azure OpenAI客户端
 let openai = null
-try {
-  if (process.env.AZURE_OPENAI_API_KEY && process.env.AZURE_OPENAI_ENDPOINT) {
-    openai = new OpenAI({
-      apiKey: process.env.AZURE_OPENAI_API_KEY,
-      baseURL: process.env.AZURE_OPENAI_ENDPOINT
-    })
+
+function initializeOpenAI() {
+  if (openai) return openai
+  
+  try {
+    if (process.env.AZURE_OPENAI_API_KEY && process.env.AZURE_OPENAI_ENDPOINT) {
+      openai = new OpenAI({
+        apiKey: process.env.AZURE_OPENAI_API_KEY,
+        baseURL: `${process.env.AZURE_OPENAI_ENDPOINT}/openai/deployments/${process.env.AZURE_OPENAI_DEPLOYMENT_NAME}`,
+        defaultQuery: { 'api-version': process.env.AZURE_OPENAI_API_VERSION },
+        defaultHeaders: {
+          'api-key': process.env.AZURE_OPENAI_API_KEY,
+        },
+      })
+      console.log('Azure OpenAI客户端初始化成功')
+      return openai
+    }
+  } catch (error) {
+    console.warn('Azure OpenAI客户端初始化失败:', error.message)
+    openai = null
   }
-} catch (error) {
-  console.warn('OpenAI客户端初始化失败:', error.message)
-  openai = null
+  return null
 }
 
 /**
@@ -22,7 +34,7 @@ try {
  */
 class AIService {
   constructor() {
-    this.model = 'gpt-4'
+    this.model = process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-4.1-mini'
     this.maxTokens = 2000
     this.temperature = 0.7
   }
@@ -30,27 +42,40 @@ class AIService {
   /**
    * 生成个性化学习建议
    * @param {string} userId - 用户ID
-   * @param {Object} studyData - 学习数据
+   * @param {Object} studyData - 学习数据或包含prompt的对象
    * @returns {Promise<Object>}
    */
   async generateStudyAdvice(userId, studyData) {
     try {
-      if (!openai) {
+      const client = initializeOpenAI()
+      if (!client) {
         throw new Error('AI服务未配置，请检查环境变量AZURE_OPENAI_API_KEY和AZURE_OPENAI_ENDPOINT')
       }
-      
-      const user = await User.findById(userId)
-      if (!user) {
-        throw new Error('用户不存在')
-      }
 
-      const prompt = `作为一名专业的学习顾问，请根据以下学生信息和学习数据，生成个性化的学习建议：
+      let prompt
+      let systemMessage = '你是一名经验丰富的学习顾问，擅长根据学生的学习情况提供个性化的学习建议。你的建议应该具体、可行、鼓励性强。'
+      
+      // 如果直接传入了prompt，则使用该prompt
+      if (studyData.prompt) {
+        prompt = studyData.prompt
+        systemMessage = '你是一名专业的AI学习伴侣，专门帮助学生学习和解题。请根据用户的问题提供准确、有用的回答。'
+      } else {
+        // 原有的学习建议生成逻辑
+        let user = null
+        if (userId !== 'demo-user') {
+          user = await User.findById(userId)
+          if (!user) {
+            throw new Error('用户不存在')
+          }
+        }
+
+        prompt = `作为一名专业的学习顾问，请根据以下学生信息和学习数据，生成个性化的学习建议：
 
 学生信息：
-- 年级：${user.profile.grade}
-- 学校：${user.profile.school}
-- 主要科目：${user.profile.subjects.join('、')}
-- 学习偏好：${JSON.stringify(user.preferences)}
+- 年级：${user?.profile?.grade || '未知'}
+- 学校：${user?.profile?.school || '未知'}
+- 主要科目：${user?.profile?.subjects?.join('、') || '未知'}
+- 学习偏好：${JSON.stringify(user?.preferences || {})}
 
 学习数据：
 - 最近学习记录：${studyData.recentRecords || 0}次
@@ -67,13 +92,14 @@ class AIService {
 5. 下一步学习重点
 
 请用温暖、鼓励的语气，提供具体可行的建议。`
+      }
 
-      const response = await openai.chat.completions.create({
+      const response = await client.chat.completions.create({
         model: this.model,
         messages: [
           {
             role: 'system',
-            content: '你是一名经验丰富的学习顾问，擅长根据学生的学习情况提供个性化的学习建议。你的建议应该具体、可行、鼓励性强。'
+            content: systemMessage
           },
           {
             role: 'user',
@@ -106,7 +132,8 @@ class AIService {
    */
   async answerQuestion(question, context = {}) {
     try {
-      if (!openai) {
+      const client = initializeOpenAI()
+      if (!client) {
         throw new Error('AI服务未配置，请检查环境变量AZURE_OPENAI_API_KEY和AZURE_OPENAI_ENDPOINT')
       }
       
@@ -126,7 +153,7 @@ ${relatedContent ? `相关内容：\n${relatedContent}\n` : ''}
 
 回答要有耐心、详细，适合${grade || '中学'}生理解。`
 
-      const response = await openai.chat.completions.create({
+      const response = await client.chat.completions.create({
         model: this.model,
         messages: [
           {
@@ -163,7 +190,8 @@ ${relatedContent ? `相关内容：\n${relatedContent}\n` : ''}
    */
   async analyzeWrongAnswer(wrongAnswer) {
     try {
-      if (!openai) {
+      const client = initializeOpenAI()
+      if (!client) {
         throw new Error('AI服务未配置，请检查环境变量AZURE_OPENAI_API_KEY和AZURE_OPENAI_ENDPOINT')
       }
       
@@ -186,7 +214,7 @@ ${explanation ? `题目解析：${explanation}` : ''}
 
 分析要深入浅出，帮助学生真正理解错误所在。`
 
-      const response = await openai.chat.completions.create({
+      const response = await client.chat.completions.create({
         model: this.model,
         messages: [
           {
@@ -224,7 +252,8 @@ ${explanation ? `题目解析：${explanation}` : ''}
    */
   async generateLearningPath(userId, goals) {
     try {
-      if (!openai) {
+      const client = initializeOpenAI()
+      if (!client) {
         throw new Error('AI服务未配置，请检查环境变量AZURE_OPENAI_API_KEY和AZURE_OPENAI_ENDPOINT')
       }
       
@@ -258,7 +287,7 @@ ${JSON.stringify(goals, null, 2)}
 
 学习路径要循序渐进，符合学生当前水平。`
 
-      const response = await openai.chat.completions.create({
+      const response = await client.chat.completions.create({
         model: this.model,
         messages: [
           {
@@ -296,7 +325,8 @@ ${JSON.stringify(goals, null, 2)}
    */
   async recommendQuestions(userId, preferences = {}) {
     try {
-      if (!openai) {
+      const client = initializeOpenAI()
+      if (!client) {
         throw new Error('AI服务未配置，请检查环境变量AZURE_OPENAI_API_KEY和AZURE_OPENAI_ENDPOINT')
       }
       
@@ -362,7 +392,7 @@ ${questions.map((q, i) => `${i + 1}. [${q.difficulty}] ${q.content.substring(0, 
   ]
 }`
 
-      const response = await openai.chat.completions.create({
+      const response = await client.chat.completions.create({
         model: this.model,
         messages: [
           {
@@ -430,7 +460,8 @@ ${questions.map((q, i) => `${i + 1}. [${q.difficulty}] ${q.content.substring(0, 
    */
   async generateStudyReport(userId, period = { days: 30 }) {
     try {
-      if (!openai) {
+      const client = initializeOpenAI()
+      if (!client) {
         throw new Error('AI服务未配置，请检查环境变量AZURE_OPENAI_API_KEY和AZURE_OPENAI_ENDPOINT')
       }
       
@@ -489,7 +520,7 @@ ${questions.map((q, i) => `${i + 1}. [${q.difficulty}] ${q.content.substring(0, 
 
 报告要客观、鼓励性强，并提供具体可行的建议。`
 
-      const response = await openai.chat.completions.create({
+      const response = await client.chat.completions.create({
         model: this.model,
         messages: [
           {
@@ -529,7 +560,8 @@ ${questions.map((q, i) => `${i + 1}. [${q.difficulty}] ${q.content.substring(0, 
    */
   async provideLearningGuidance(userId, context) {
     try {
-      if (!openai) {
+      const client = initializeOpenAI()
+      if (!client) {
         throw new Error('AI服务未配置，请检查环境变量AZURE_OPENAI_API_KEY和AZURE_OPENAI_ENDPOINT')
       }
       
@@ -552,7 +584,7 @@ ${questions.map((q, i) => `${i + 1}. [${q.difficulty}] ${q.content.substring(0, 
 
 回复要简洁、鼓励、实用。`
 
-      const response = await openai.chat.completions.create({
+      const response = await client.chat.completions.create({
         model: this.model,
         messages: [
           {

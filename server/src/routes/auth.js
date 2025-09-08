@@ -163,6 +163,37 @@ router.post('/login', [
 // @route   GET /api/auth/me
 // @access  Private
 router.get('/me', authMiddleware, asyncHandler(async (req, res) => {
+  // 处理demo用户
+  if (req.user.id === 'demo-user') {
+    return res.json({
+      success: true,
+      data: {
+        user: {
+          id: 'demo-user',
+          name: 'Demo User',
+          email: 'demo@example.com',
+          avatar: null,
+          school: '示例学校',
+          grade: '高二',
+          subjects: ['数学', '物理', '化学'],
+          role: 'student',
+          preferences: {
+            studyReminder: true,
+            emailNotification: false,
+            theme: 'light'
+          },
+          stats: {
+            totalStudyTime: 120,
+            questionsAnswered: 50,
+            correctAnswers: 42,
+            papersUploaded: 3,
+            streak: 5
+          }
+        }
+      }
+    })
+  }
+
   const user = await User.findById(req.user.id)
 
   res.json({
