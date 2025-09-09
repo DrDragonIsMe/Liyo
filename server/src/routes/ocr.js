@@ -31,7 +31,7 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: {
-    fileSize: parseInt(process.env.OCR_MAX_FILE_SIZE) || 20 * 1024 * 1024 // 20MB
+    fileSize: parseInt(process.env.OCR_MAX_FILE_SIZE) || 300 * 1024 * 1024 // 300MB
   },
   fileFilter: (req, file, cb) => {
     const allowedTypes = (process.env.OCR_SUPPORTED_FORMATS || 'jpg,jpeg,png,pdf,webp').split(',')

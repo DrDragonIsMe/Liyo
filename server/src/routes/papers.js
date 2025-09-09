@@ -31,7 +31,7 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB
+    fileSize: 300 * 1024 * 1024 // 300MB
   },
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|pdf|doc|docx/
@@ -513,6 +513,201 @@ router.post('/:id/comments', [
   res.status(201).json({
     success: true,
     message: '评论添加成功'
+  })
+}))
+
+// @desc    预览试卷文件
+// @route   GET /api/papers/:id/preview
+// @access  Private
+router.get('/:id/preview', asyncHandler(async (req, res) => {
+  const paper = await Paper.findById(req.params.id)
+    .populate('uploadedBy', 'name')
+  
+  if (!paper) {
+    return res.status(404).json({
+      success: false,
+      error: '试卷不存在'
+    })
+  }
+
+  // 检查访问权限
+  if (!paper.isPublic && paper.uploadedBy._id.toString() !== req.user.id && req.user.role !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      error: '无权预览该试卷'
+    })
+  }
+
+  // 检查文件是否存在
+  if (!paper.originalFile) {
+    return res.status(404).json({
+      success: false,
+      error: '试卷文件不存在'
+    })
+  }
+
+  try {
+    // 检查文件是否存在于磁盘
+    await fs.access(paper.originalFile)
+    
+    // 获取文件信息
+    const stats = await fs.stat(paper.originalFile)
+    const fileExt = path.extname(paper.originalFile).toLowerCase()
+    
+    // 设置响应头
+    let contentType = 'application/octet-stream'
+    if (fileExt === '.pdf') {
+      contentType = 'application/pdf'
+    } else if (['.jpg', '.jpeg'].includes(fileExt)) {
+      contentType = 'image/jpeg'
+    } else if (fileExt === '.png') {
+      contentType = 'image/png'
+    }
+    
+    res.setHeader('Content-Type', contentType)
+    res.setHeader('Content-Length', stats.size)
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(paper.title)}${fileExt}"`)
+    res.setHeader('Cache-Control', 'public, max-age=3600')
+    
+    // 流式传输文件
+    const fileStream = await fs.readFile(paper.originalFile)
+    res.send(fileStream)
+    
+  } catch (error) {
+    console.error('预览文件失败:', error)
+    res.status(404).json({
+      success: false,
+      error: '文件不存在或已损坏'
+    })
+  }
+}))
+
+// @desc    下载试卷文件
+// @route   GET /api/papers/:id/download
+// @access  Private
+router.get('/:id/download', asyncHandler(async (req, res) => {
+  const paper = await Paper.findById(req.params.id)
+    .populate('uploadedBy', 'name')
+  
+  if (!paper) {
+    return res.status(404).json({
+      success: false,
+      error: '试卷不存在'
+    })
+  }
+
+  // 检查访问权限
+  if (!paper.isPublic && paper.uploadedBy._id.toString() !== req.user.id && req.user.role !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      error: '无权下载该试卷'
+    })
+  }
+
+  // 检查文件是否存在
+  if (!paper.originalFile) {
+    return res.status(404).json({
+      success: false,
+      error: '试卷文件不存在'
+    })
+  }
+
+  try {
+    // 检查文件是否存在于磁盘
+    await fs.access(paper.originalFile)
+    
+    // 获取文件信息
+    const stats = await fs.stat(paper.originalFile)
+    const fileExt = path.extname(paper.originalFile).toLowerCase()
+    
+    // 增加下载次数
+    await paper.incrementDownload()
+    
+    // 设置响应头
+    let contentType = 'application/octet-stream'
+    if (fileExt === '.pdf') {
+      contentType = 'application/pdf'
+    } else if (['.jpg', '.jpeg'].includes(fileExt)) {
+      contentType = 'image/jpeg'
+    } else if (fileExt === '.png') {
+      contentType = 'image/png'
+    }
+    
+    res.setHeader('Content-Type', contentType)
+    res.setHeader('Content-Length', stats.size)
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(paper.title)}${fileExt}"`)
+    
+    // 流式传输文件
+    const fileStream = await fs.readFile(paper.originalFile)
+    res.send(fileStream)
+    
+  } catch (error) {
+    console.error('下载文件失败:', error)
+    res.status(404).json({
+      success: false,
+      error: '文件不存在或已损坏'
+    })
+  }
+}))
+
+// @desc    获取试卷统计信息
+// @route   GET /api/papers/:id/stats
+// @access  Private
+router.get('/:id/stats', asyncHandler(async (req, res) => {
+  const paper = await Paper.findById(req.params.id)
+    .populate('uploadedBy', 'name')
+    .populate('questions')
+  
+  if (!paper) {
+    return res.status(404).json({
+      success: false,
+      error: '试卷不存在'
+    })
+  }
+
+  // 检查访问权限
+  if (!paper.isPublic && paper.uploadedBy._id.toString() !== req.user.id && req.user.role !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      error: '无权访问该试卷统计'
+    })
+  }
+
+  // 计算题目类型分布
+  const questionTypes = {}
+  const difficultyDistribution = { '简单': 0, '中等': 0, '困难': 0 }
+  
+  paper.questions.forEach(question => {
+    // 统计题目类型
+    const type = question.type || '未知'
+    questionTypes[type] = (questionTypes[type] || 0) + 1
+    
+    // 统计难度分布
+    const difficulty = question.difficulty || '中等'
+    if (difficultyDistribution.hasOwnProperty(difficulty)) {
+      difficultyDistribution[difficulty]++
+    }
+  })
+
+  res.json({
+    success: true,
+    data: {
+      basic: {
+        totalQuestions: paper.questions.length,
+        totalScore: paper.totalScore,
+        timeLimit: paper.timeLimit,
+        viewCount: paper.viewCount,
+        downloadCount: paper.downloadCount,
+        likeCount: paper.likeCount,
+        averageRating: paper.averageRating
+      },
+      questionTypes,
+      difficultyDistribution,
+      recentActivity: {
+        lastViewed: paper.updatedAt,
+        commentsCount: paper.comments.length
+      }
+    }
   })
 }))
 

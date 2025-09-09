@@ -8,21 +8,21 @@ export const authMiddleware = asyncHandler(async (req, res, next) => {
 
   // 检查Authorization头部
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-    try {
-      // 获取token
-      token = req.headers.authorization.split(' ')[1]
+    // 获取token
+    token = req.headers.authorization.split(' ')[1]
 
-      // 特殊处理demo-token
-      if (token === 'demo-token') {
-        req.user = { 
-          id: 'demo-user',
-          name: 'Demo User',
-          email: 'demo@example.com',
-          role: 'student'
-        }
-        return next()
+    // 特殊处理demo-token
+    if (token === 'demo-token') {
+      req.user = { 
+        id: 'demo-user',
+        name: 'Demo User',
+        email: 'demo@example.com',
+        role: 'student'
       }
+      return next()
+    }
 
+    try {
       // 验证token
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key')
 

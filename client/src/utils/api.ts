@@ -142,6 +142,62 @@ class ApiClient {
     return await response.json();
   }
 
+  // 预览试卷
+  async previewPaper(paperId: string): Promise<Blob> {
+    const url = `${this.baseURL}/papers/${paperId}/preview`;
+    let token = localStorage.getItem('token');
+    // 如果token无效或不存在，使用demo-token
+    if (!token || token === 'null' || token === 'undefined') {
+      token = 'demo-token';
+    }
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers,
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return await response.blob();
+  }
+
+  // 下载试卷
+  async downloadPaper(paperId: string): Promise<Blob> {
+    const url = `${this.baseURL}/papers/${paperId}/download`;
+    let token = localStorage.getItem('token');
+    // 如果token无效或不存在，使用demo-token
+    if (!token || token === 'null' || token === 'undefined') {
+      token = 'demo-token';
+    }
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers,
+    });
+    
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return await response.blob();
+  }
+
+  // 获取试卷统计信息
+  async getPaperStats(paperId: string) {
+    return this.request(`/papers/${paperId}/stats`);
+  }
+
   async getPapers(userId: string) {
     return this.request(`/papers/user/${userId}`);
   }

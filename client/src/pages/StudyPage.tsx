@@ -11,6 +11,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import KnowledgePointDetail from '../components/KnowledgePointDetail'
+import MathRenderer from '../components/MathRenderer'
 
 interface Question {
   id: string
@@ -399,7 +400,9 @@ const StudyPage = () => {
             </div>
             
             <div className="prose max-w-none">
-              <p className="text-lg text-gray-900 mb-4">{currentQuestion.content}</p>
+              <div className="text-lg text-gray-900 mb-4">
+                <MathRenderer content={currentQuestion.content} />
+              </div>
             </div>
             
             {/* 选择题选项 */}
@@ -469,7 +472,9 @@ const StudyPage = () => {
           {showExplanation && currentQuestion.explanation && (
             <div className="p-6 bg-blue-50">
               <h3 className="text-lg font-medium text-blue-900 mb-2">解题思路</h3>
-              <p className="text-blue-800 mb-4">{currentQuestion.explanation}</p>
+              <div className="text-blue-800 mb-4">
+                <MathRenderer content={currentQuestion.explanation} />
+              </div>
               
               <div className="mb-3">
                 <h4 className="text-sm font-medium text-blue-900 mb-1">相关知识点：</h4>

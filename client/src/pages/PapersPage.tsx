@@ -9,6 +9,7 @@ import {
   DocumentArrowDownIcon,
 } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
+import api from '../utils/api'
 
 interface Paper {
   id: string
@@ -59,6 +60,10 @@ const PapersPage = () => {
   const [selectedSubject, setSelectedSubject] = useState('all')
   const [selectedType, setSelectedType] = useState('all')
   const [isUploading, setIsUploading] = useState(false)
+  const [showUploadModal, setShowUploadModal] = useState(false)
+  const [uploadFiles, setUploadFiles] = useState<File[]>([])
+  const [uploadSubject, setUploadSubject] = useState('')
+  const [uploadType, setUploadType] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const subjects = ['数学', '物理', '化学', '语文', '英语', '生物']
@@ -71,33 +76,55 @@ const PapersPage = () => {
     return matchesSearch && matchesSubject && matchesType
   })
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
     if (!files || files.length === 0) return
 
+    const validFiles: File[] = []
+    
+    for (const file of Array.from(files)) {
+      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg']
+      if (!allowedTypes.includes(file.type)) {
+        toast.error(`不支持的文件类型: ${file.name}`)
+        continue
+      }
+
+      if (file.size > 300 * 1024 * 1024) {
+        toast.error(`文件过大: ${file.name} (最大支持300MB)`)
+        continue
+      }
+
+      validFiles.push(file)
+    }
+
+    if (validFiles.length > 0) {
+      setUploadFiles(validFiles)
+      setUploadSubject('')
+      setUploadType('')
+      setShowUploadModal(true)
+    }
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const handleConfirmUpload = async () => {
+    if (!uploadSubject || !uploadType) {
+      toast.error('请选择科目和类型')
+      return
+    }
+
     setIsUploading(true)
+    setShowUploadModal(false)
     
     try {
-      for (const file of Array.from(files)) {
-        // 验证文件类型
-        const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg']
-        if (!allowedTypes.includes(file.type)) {
-          toast.error(`不支持的文件类型: ${file.name}`)
-          continue
-        }
-
-        // 验证文件大小 (最大 10MB)
-        if (file.size > 10 * 1024 * 1024) {
-          toast.error(`文件过大: ${file.name} (最大支持10MB)`)
-          continue
-        }
-
-        // 创建新的试卷记录
+      for (const file of uploadFiles) {
         const newPaper: Paper = {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
           name: file.name.replace(/\.[^/.]+$/, ''),
-          subject: '未分类',
-          type: '其他',
+          subject: uploadSubject,
+          type: uploadType,
           uploadDate: new Date().toISOString().split('T')[0],
           questionCount: 0,
           status: 'processing',
@@ -107,7 +134,6 @@ const PapersPage = () => {
         setPapers(prev => [newPaper, ...prev])
         toast.success(`开始处理: ${file.name}`)
 
-        // 模拟OCR处理过程
         setTimeout(() => {
           setPapers(prev => prev.map(p => 
             p.id === newPaper.id 
@@ -121,9 +147,7 @@ const PapersPage = () => {
       toast.error('上传失败，请重试')
     } finally {
       setIsUploading(false)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
+      setUploadFiles([])
     }
   }
 
@@ -131,6 +155,49 @@ const PapersPage = () => {
     if (window.confirm('确定要删除这份试卷吗？')) {
       setPapers(prev => prev.filter(p => p.id !== paperId))
       toast.success('试卷已删除')
+    }
+  }
+
+  const handlePreviewPaper = async (paperId: string, paperName: string) => {
+    try {
+      const blob = await api.previewPaper(paperId)
+      const url = URL.createObjectURL(blob)
+      
+      const newWindow = window.open(url, '_blank')
+      if (!newWindow) {
+        toast.error('请允许弹出窗口以预览文件')
+        return
+      }
+      
+      setTimeout(() => {
+        URL.revokeObjectURL(url)
+      }, 1000)
+      
+      toast.success('正在预览试卷')
+    } catch (error) {
+      console.error('预览失败:', error)
+      toast.error('预览失败，请重试')
+    }
+  }
+
+  const handleDownloadPaper = async (paperId: string, paperName: string) => {
+    try {
+      const blob = await api.downloadPaper(paperId)
+      const url = URL.createObjectURL(blob)
+      
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${paperName}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      URL.revokeObjectURL(url)
+      
+      toast.success('下载完成')
+    } catch (error) {
+      console.error('下载失败:', error)
+      toast.error('下载失败，请重试')
     }
   }
 
@@ -159,7 +226,6 @@ const PapersPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* 页面标题和上传按钮 */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">试卷管理</h1>
@@ -173,7 +239,7 @@ const PapersPage = () => {
             type="file"
             multiple
             accept=".pdf,.jpg,.jpeg,.png"
-            onChange={handleFileUpload}
+            onChange={handleFileSelect}
             className="hidden"
           />
           <button
@@ -187,7 +253,6 @@ const PapersPage = () => {
         </div>
       </div>
 
-      {/* 搜索和筛选 */}
       <div className="bg-white shadow rounded-lg p-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="relative">
@@ -230,7 +295,6 @@ const PapersPage = () => {
         </div>
       </div>
 
-      {/* 试卷列表 */}
       <div className="bg-white shadow rounded-lg overflow-hidden">
         {filteredPapers.length === 0 ? (
           <div className="text-center py-12">
@@ -255,13 +319,16 @@ const PapersPage = () => {
                     类型
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    上传日期
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     题目数量
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     状态
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    上传日期
+                    文件大小
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     操作
@@ -274,42 +341,44 @@ const PapersPage = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <DocumentTextIcon className="h-5 w-5 text-gray-400 mr-3" />
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {paper.name}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {paper.fileSize}
-                          </div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {paper.name}
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {paper.subject}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {paper.type}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {paper.uploadDate}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {paper.status === 'completed' ? paper.questionCount : '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getStatusBadge(paper.status)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {paper.uploadDate}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {paper.fileSize}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex items-center space-x-2">
+                      <div className="flex space-x-2">
                         <button
-                          className="text-primary-600 hover:text-primary-900"
-                          title="查看详情"
+                          onClick={() => handlePreviewPaper(paper.id, paper.name)}
+                          className="text-blue-600 hover:text-blue-900"
+                          title="预览试卷"
+                          disabled={paper.status !== 'completed'}
                         >
                           <EyeIcon className="h-4 w-4" />
                         </button>
                         <button
+                          onClick={() => handleDownloadPaper(paper.id, paper.name)}
                           className="text-green-600 hover:text-green-900"
-                          title="下载"
+                          title="下载试卷"
+                          disabled={paper.status !== 'completed'}
                         >
                           <DocumentArrowDownIcon className="h-4 w-4" />
                         </button>
@@ -330,17 +399,89 @@ const PapersPage = () => {
         )}
       </div>
 
-      {/* 上传说明 */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <h3 className="text-sm font-medium text-blue-800 mb-2">上传说明</h3>
         <ul className="text-sm text-blue-700 space-y-1">
           <li>• 支持的文件格式：PDF、JPG、PNG</li>
-          <li>• 单个文件最大支持 10MB</li>
+          <li>• 单个文件最大支持 300MB</li>
           <li>• 支持批量上传多个文件</li>
           <li>• 系统将自动进行OCR识别，提取试卷中的题目</li>
           <li>• 处理完成后，题目将自动加入题库</li>
         </ul>
       </div>
+
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">上传试卷</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    选择科目 *
+                  </label>
+                  <select
+                    value={uploadSubject}
+                    onChange={(e) => setUploadSubject(e.target.value)}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                  >
+                    <option value="">请选择科目</option>
+                    {subjects.map(subject => (
+                      <option key={subject} value={subject}>{subject}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    选择类型 *
+                  </label>
+                  <select
+                    value={uploadType}
+                    onChange={(e) => setUploadType(e.target.value)}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                  >
+                    <option value="">请选择类型</option>
+                    {paperTypes.map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    待上传文件
+                  </label>
+                  <div className="bg-gray-50 rounded-md p-3">
+                    {uploadFiles.map((file, index) => (
+                      <div key={index} className="text-sm text-gray-600">
+                        {file.name} ({(file.size / (1024 * 1024)).toFixed(1)} MB)
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  onClick={() => setShowUploadModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleConfirmUpload}
+                  disabled={!uploadSubject || !uploadType}
+                  className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  确认上传
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

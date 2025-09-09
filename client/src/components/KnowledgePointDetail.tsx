@@ -12,6 +12,7 @@ import {
 } from '@heroicons/react/24/outline'
 import api from '../utils/api'
 import { toast } from 'react-hot-toast'
+import MathRenderer from './MathRenderer'
 
 interface KnowledgePointDetailProps {
   knowledgePoint: string
@@ -510,7 +511,9 @@ const KnowledgePointDetail: React.FC<KnowledgePointDetailProps> = ({
                           </span>
                         </div>
                       </div>
-                      <p className="text-sm text-gray-700 line-clamp-2">{question.content}</p>
+                      <div className="text-sm text-gray-700 line-clamp-2">
+                        <MathRenderer content={question.content} />
+                      </div>
                     </div>
                   ))}
                   {knowledgeInfo.examQuestions.length > 10 && (

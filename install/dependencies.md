@@ -66,6 +66,8 @@
 - **react-hot-toast** ^2.6.0 - 通知提示组件
 - **react-dropzone** ^14.2.3 - 文件拖拽上传
 - **zustand** ^4.5.7 - 状态管理
+- **katex** ^0.16.9 - 数学公式渲染引擎 🆕
+- **react-katex** ^3.0.1 - React KaTeX 组件 🆕
 
 ### 开发工具
 - **vite** ^4.5.0 - 构建工具
@@ -74,6 +76,7 @@
 - **@types/react** ^18.2.37 - React 类型定义
 - **@types/react-dom** ^18.2.15 - React DOM 类型定义
 - **@types/node** ^24.3.1 - Node.js 类型定义
+- **@types/react-katex** ^3.0.4 - React KaTeX 类型定义 🆕
 - **eslint** ^8.53.0 - 代码检查工具
 - **@typescript-eslint/eslint-plugin** ^6.10.0 - TypeScript ESLint 插件
 - **@typescript-eslint/parser** ^6.10.0 - TypeScript ESLint 解析器

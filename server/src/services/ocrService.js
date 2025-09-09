@@ -23,7 +23,7 @@ try {
 class OCRService {
   constructor() {
     this.supportedFormats = ['.jpg', '.jpeg', '.png', '.pdf', '.webp']
-    this.maxFileSize = 20 * 1024 * 1024 // 20MB
+    this.maxFileSize = 300 * 1024 * 1024 // 300MB
     this.maxImageSize = 2048 // 最大图片尺寸
   }
 
