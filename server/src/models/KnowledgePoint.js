@@ -21,7 +21,7 @@ const knowledgePointSchema = new mongoose.Schema({
   source: {
     type: String,
     required: true,
-    enum: ['textbook', 'web_baike.baidu.com', 'web_zhihu.com', 'ai_enhanced', 'ai', 'fallback', 'user_edited']
+    enum: ['textbook', 'web_baike.baidu.com', 'web_zhihu.com', 'ai_enhanced', 'ai', 'fallback', 'user_edited', 'user_generated', 'image_analysis']
   },
   relatedConcepts: [{
     type: String,
@@ -64,7 +64,7 @@ const knowledgePointSchema = new mongoose.Schema({
     default: 1
   },
   
-  // 用户编辑相关
+  // 质量控制
   isUserEdited: {
     type: Boolean,
     default: false
@@ -77,6 +77,26 @@ const knowledgePointSchema = new mongoose.Schema({
     },
     previousDefinition: String,
     editReason: String
+  }],
+  
+  // 用户答题方案
+  userSolutions: [{
+    title: {
+      type: String,
+      required: true
+    },
+    approach: String,
+    steps: [String],
+    keyPoints: [String],
+    questionId: {
+      type: String,
+      required: true
+    },
+    subject: String,
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
   }],
   
   // 元数据

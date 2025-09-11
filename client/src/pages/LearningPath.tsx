@@ -5,6 +5,7 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { useSubjectStore } from '../store/subjectStore';
 import { 
   BookOpen, 
   Target, 
@@ -57,6 +58,7 @@ interface StatsType {
 
 const LearningPath = () => {
   const navigate = useNavigate();
+  const { currentSubject } = useSubjectStore();
   const [learningPaths, setLearningPaths] = useState<LearningPathType[]>([]);
   const [subjects, setSubjects] = useState<SubjectType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,6 +73,13 @@ const LearningPath = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // 当学科变化时重新计算统计信息
+  useEffect(() => {
+    if (learningPaths.length > 0) {
+      calculateStats(learningPaths);
+    }
+  }, [currentSubject, learningPaths]);
 
   const fetchData = async () => {
     try {
@@ -96,19 +105,31 @@ const LearningPath = () => {
     }
   };
 
+  // 根据当前学科过滤学习路径
+  const filteredLearningPaths = currentSubject 
+    ? learningPaths.filter(path => 
+        path.subject === currentSubject.id || 
+        (path.subjects && path.subjects.includes(currentSubject.id))
+      )
+    : learningPaths;
+
   const calculateStats = (paths: LearningPathType[]) => {
+    const pathsToCalculate = currentSubject ? filteredLearningPaths : paths;
     const stats = {
-      totalPaths: paths.length,
-      activePaths: paths.filter((p: LearningPathType) => p.status === 'active').length,
-      completedPaths: paths.filter((p: LearningPathType) => p.status === 'completed').length,
-      totalProgress: paths.length > 0 ? 
-        Math.round(paths.reduce((sum: number, p: LearningPathType) => sum + (p.progress || 0), 0) / paths.length) : 0
+      totalPaths: pathsToCalculate.length,
+      activePaths: pathsToCalculate.filter((p: LearningPathType) => p.status === 'active').length,
+      completedPaths: pathsToCalculate.filter((p: LearningPathType) => p.status === 'completed').length,
+      totalProgress: pathsToCalculate.length > 0 ? 
+        Math.round(pathsToCalculate.reduce((sum: number, p: LearningPathType) => sum + (p.progress || 0), 0) / pathsToCalculate.length) : 0
     };
     setStats(stats);
   };
 
   const handleCreatePath = () => {
-    navigate('/learning-path/create');
+    const url = currentSubject 
+      ? `/learning-path/create?subject=${currentSubject.id}`
+      : '/learning-path/create';
+    navigate(url);
   };
 
   const handleViewPath = (pathId: string) => {
@@ -178,8 +199,15 @@ const LearningPath = () => {
       {/* 页面标题 */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">学习路径</h1>
-          <p className="text-gray-600 mt-2">个性化学习计划，助您高效掌握知识</p>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {currentSubject ? `${currentSubject.name} 学习路径` : '学习路径'}
+          </h1>
+          <p className="text-gray-600 mt-2">
+            {currentSubject 
+              ? `专为${currentSubject.name}学科设计的个性化学习计划` 
+              : '个性化学习计划，助您高效掌握知识'
+            }
+          </p>
         </div>
         <Button onClick={handleCreatePath} className="flex items-center gap-2">
           <Plus className="w-4 h-4" />
@@ -246,12 +274,19 @@ const LearningPath = () => {
         </TabsList>
 
         <TabsContent value="my-paths" className="mt-6">
-          {learningPaths.length === 0 ? (
+          {filteredLearningPaths.length === 0 ? (
             <Card>
               <CardContent className="p-12 text-center">
                 <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">还没有学习路径</h3>
-                <p className="text-gray-600 mb-6">创建您的第一个个性化学习路径，开始高效学习之旅</p>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  {currentSubject ? `还没有${currentSubject.name}学习路径` : '还没有学习路径'}
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  {currentSubject 
+                    ? `创建您的第一个${currentSubject.name}学习路径，开始专业学习之旅`
+                    : '创建您的第一个个性化学习路径，开始高效学习之旅'
+                  }
+                </p>
                 <Button onClick={handleCreatePath} className="flex items-center gap-2">
                   <Plus className="w-4 h-4" />
                   创建学习路径
@@ -260,7 +295,7 @@ const LearningPath = () => {
             </Card>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {learningPaths.map((path) => (
+              {filteredLearningPaths.map((path) => (
                 <Card key={path._id} className="hover:shadow-lg transition-shadow">
                   <CardHeader>
                     <div className="flex items-start justify-between">

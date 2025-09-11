@@ -10,6 +10,8 @@ import {
 } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import api from '../utils/api'
+import { useSubjectStore } from '../store/subjectStore'
+import { SUBJECTS } from '../store/subjectStore'
 
 interface Paper {
   id: string
@@ -23,6 +25,8 @@ interface Paper {
 }
 
 const PapersPage = () => {
+  const { currentSubject, isSubjectSelected } = useSubjectStore()
+  
   const [papers, setPapers] = useState<Paper[]>([
     {
       id: '1',
@@ -66,10 +70,15 @@ const PapersPage = () => {
   const [uploadType, setUploadType] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const subjects = ['数学', '物理', '化学', '语文', '英语', '生物']
+  const subjects = SUBJECTS.map(s => s.name)
   const paperTypes = ['高考模拟', '专题练习', '单元测试', '期中考试', '期末考试']
 
-  const filteredPapers = papers.filter(paper => {
+  // 根据学科选择过滤试卷
+  const subjectFilteredPapers = isSubjectSelected && currentSubject
+    ? papers.filter(paper => paper.subject === currentSubject.name)
+    : papers
+
+  const filteredPapers = subjectFilteredPapers.filter(paper => {
     const matchesSearch = paper.name.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesSubject = selectedSubject === 'all' || paper.subject === selectedSubject
     const matchesType = selectedType === 'all' || paper.type === selectedType
@@ -99,7 +108,8 @@ const PapersPage = () => {
 
     if (validFiles.length > 0) {
       setUploadFiles(validFiles)
-      setUploadSubject('')
+      // 如果已选择学科，自动设置上传科目
+      setUploadSubject(isSubjectSelected && currentSubject ? currentSubject.name : '')
       setUploadType('')
       setShowUploadModal(true)
     }
@@ -110,7 +120,9 @@ const PapersPage = () => {
   }
 
   const handleConfirmUpload = async () => {
-    if (!uploadSubject || !uploadType) {
+    const finalSubject = isSubjectSelected && currentSubject ? currentSubject.name : uploadSubject
+    
+    if (!finalSubject || !uploadType) {
       toast.error('请选择科目和类型')
       return
     }
@@ -123,7 +135,7 @@ const PapersPage = () => {
         const newPaper: Paper = {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
           name: file.name.replace(/\.[^/.]+$/, ''),
-          subject: uploadSubject,
+          subject: finalSubject,
           type: uploadType,
           uploadDate: new Date().toISOString().split('T')[0],
           questionCount: 0,
@@ -228,9 +240,14 @@ const PapersPage = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">试卷管理</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {isSubjectSelected && currentSubject ? `${currentSubject.name}试卷管理` : '试卷管理'}
+          </h1>
           <p className="mt-1 text-sm text-gray-500">
-            上传试卷，自动OCR解析生成题库
+            {isSubjectSelected && currentSubject 
+              ? `上传${currentSubject.name}试卷，自动OCR解析生成题库` 
+              : '上传试卷，自动OCR解析生成题库'
+            }
           </p>
         </div>
         <div className="mt-4 sm:mt-0">
@@ -266,16 +283,18 @@ const PapersPage = () => {
             />
           </div>
           
-          <select
-            value={selectedSubject}
-            onChange={(e) => setSelectedSubject(e.target.value)}
-            className="rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-          >
-            <option value="all">所有科目</option>
-            {subjects.map(subject => (
-              <option key={subject} value={subject}>{subject}</option>
-            ))}
-          </select>
+          {!isSubjectSelected && (
+            <select
+              value={selectedSubject}
+              onChange={(e) => setSelectedSubject(e.target.value)}
+              className="rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+            >
+              <option value="all">所有科目</option>
+              {subjects.map(subject => (
+                <option key={subject} value={subject}>{subject}</option>
+              ))}
+            </select>
+          )}
           
           <select
             value={selectedType}
@@ -414,24 +433,37 @@ const PapersPage = () => {
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
             <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">上传试卷</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                {isSubjectSelected && currentSubject ? `上传${currentSubject.name}试卷` : '上传试卷'}
+              </h3>
               
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    选择科目 *
-                  </label>
-                  <select
-                    value={uploadSubject}
-                    onChange={(e) => setUploadSubject(e.target.value)}
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                  >
-                    <option value="">请选择科目</option>
-                    {subjects.map(subject => (
-                      <option key={subject} value={subject}>{subject}</option>
-                    ))}
-                  </select>
-                </div>
+                {isSubjectSelected && currentSubject ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      科目
+                    </label>
+                    <div className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-gray-700">
+                      {currentSubject.name}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      选择科目 *
+                    </label>
+                    <select
+                      value={uploadSubject}
+                      onChange={(e) => setUploadSubject(e.target.value)}
+                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                    >
+                      <option value="">请选择科目</option>
+                      {subjects.map(subject => (
+                        <option key={subject} value={subject}>{subject}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">

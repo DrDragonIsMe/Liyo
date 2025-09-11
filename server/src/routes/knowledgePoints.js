@@ -76,6 +76,355 @@ const examQuestionsData = {
   ]
 }
 
+// 保存答题方案到知识点
+router.post('/save-solution', [
+  body('title').notEmpty().withMessage('标题不能为空'),
+  body('questionId').notEmpty().withMessage('题目ID不能为空'),
+  body('subject').notEmpty().withMessage('学科不能为空')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: '参数验证失败',
+        details: errors.array()
+      })
+    }
+    
+    const { title, approach, steps, keyPoints, questionId, subject, knowledgePoints } = req.body
+    
+    // 构建答题方案内容
+    const solutionContent = {
+      title,
+      approach: approach || '',
+      steps: Array.isArray(steps) ? steps : [],
+      keyPoints: Array.isArray(keyPoints) ? keyPoints : [],
+      questionId,
+      subject,
+      createdAt: new Date()
+    }
+    
+    // 如果提供了知识点列表，为每个知识点保存方案
+    if (knowledgePoints && Array.isArray(knowledgePoints)) {
+      const savedSolutions = []
+      
+      for (const knowledgePointName of knowledgePoints) {
+        try {
+          // 查找或创建知识点
+          let knowledgePoint = await KnowledgePoint.findOne({
+            name: knowledgePointName,
+            subject: subject,
+            isActive: true
+          })
+          
+          if (!knowledgePoint) {
+            // 如果知识点不存在，创建一个基础的知识点记录
+            knowledgePoint = await KnowledgePoint.findOrCreate(
+              knowledgePointName,
+              subject,
+              {
+                name: knowledgePointName,
+                subject: subject,
+                definition: `${knowledgePointName}是${subject}学科中的重要概念。`,
+                source: 'user_generated',
+                relatedConcepts: [],
+                examQuestions: [],
+                examProbability: 0,
+                yearlyStats: [],
+                lastUpdated: new Date(),
+                lastFetched: new Date()
+              }
+            )
+          }
+          
+          // 添加答题方案到知识点的自定义字段
+          if (!knowledgePoint.userSolutions) {
+            knowledgePoint.userSolutions = []
+          }
+          
+          knowledgePoint.userSolutions.push(solutionContent)
+          knowledgePoint.lastUpdated = new Date()
+          
+          await knowledgePoint.save()
+          savedSolutions.push({
+            knowledgePoint: knowledgePointName,
+            success: true
+          })
+          
+        } catch (error) {
+          console.error(`保存到知识点 ${knowledgePointName} 失败:`, error)
+          savedSolutions.push({
+            knowledgePoint: knowledgePointName,
+            success: false,
+            error: error.message
+          })
+        }
+      }
+      
+      const successCount = savedSolutions.filter(s => s.success).length
+      
+      res.json({
+        success: successCount > 0,
+        message: `成功保存到 ${successCount}/${knowledgePoints.length} 个知识点`,
+        data: {
+          savedSolutions,
+          solutionContent
+        }
+      })
+      
+    } else {
+      // 如果没有提供知识点列表，返回错误
+      res.status(400).json({
+        success: false,
+        error: '请提供知识点列表'
+      })
+    }
+    
+  } catch (error) {
+    console.error('保存答题方案失败:', error)
+    res.status(500).json({
+      success: false,
+      error: '保存答题方案失败'
+    })
+   }
+});
+
+// 搜索路由 - 必须在参数路由之前
+router.get('/search', async (req, res) => {
+  const { query, subject } = req.query
+  
+  if (!query) {
+    return res.status(400).json({
+      success: false,
+      error: '请提供搜索关键词'
+    })
+  }
+
+  try {
+    // 1. 在教材定义中搜索
+    const textbookResults = []
+    if (subject && textbookDefinitions[subject]) {
+      Object.keys(textbookDefinitions[subject]).forEach(name => {
+        if (name.includes(query) || textbookDefinitions[subject][name].definition.includes(query)) {
+          textbookResults.push({
+            name,
+            definition: textbookDefinitions[subject][name].definition,
+            relatedConcepts: textbookDefinitions[subject][name].relatedConcepts,
+            source: 'textbook',
+            subject,
+            relevanceScore: calculateRelevanceScore(query, name, textbookDefinitions[subject][name].definition)
+          })
+        }
+      })
+    } else {
+      // 如果没有指定学科，搜索所有学科
+      Object.keys(textbookDefinitions).forEach(subj => {
+        Object.keys(textbookDefinitions[subj]).forEach(name => {
+          if (name.includes(query) || textbookDefinitions[subj][name].definition.includes(query)) {
+            textbookResults.push({
+              name,
+              definition: textbookDefinitions[subj][name].definition,
+              relatedConcepts: textbookDefinitions[subj][name].relatedConcepts,
+              source: 'textbook',
+              subject: subj,
+              relevanceScore: calculateRelevanceScore(query, name, textbookDefinitions[subj][name].definition)
+            })
+          }
+        })
+      })
+    }
+
+    // 2. 在数据库中搜索
+    const searchConditions = {
+      $or: [
+        { name: { $regex: query, $options: 'i' } },
+        { definition: { $regex: query, $options: 'i' } },
+        { 'relatedConcepts': { $in: [new RegExp(query, 'i')] } }
+      ],
+      isActive: true
+    }
+
+    if (subject) {
+      searchConditions.subject = subject
+    }
+
+    const dbResults = await KnowledgePoint.find(searchConditions)
+      .select('name definition relatedConcepts source subject isUserEdited lastUpdated')
+      .limit(20)
+
+    // 3. 合并结果并去重
+    const allResults = [...textbookResults]
+    
+    dbResults.forEach(dbResult => {
+      const existingIndex = allResults.findIndex(result => 
+        result.name === dbResult.name && result.subject === dbResult.subject
+      )
+      
+      if (existingIndex >= 0) {
+        // 用数据库版本覆盖（用户编辑的优先）
+        allResults[existingIndex] = {
+          name: dbResult.name,
+          definition: dbResult.definition,
+          relatedConcepts: dbResult.relatedConcepts,
+          source: dbResult.source,
+          subject: dbResult.subject,
+          isUserEdited: dbResult.isUserEdited,
+          lastUpdated: dbResult.lastUpdated,
+          relevanceScore: calculateRelevanceScore(query, dbResult.name, dbResult.definition)
+        }
+      } else {
+        allResults.push({
+          name: dbResult.name,
+          definition: dbResult.definition,
+          relatedConcepts: dbResult.relatedConcepts,
+          source: dbResult.source,
+          subject: dbResult.subject,
+          isUserEdited: dbResult.isUserEdited,
+          lastUpdated: dbResult.lastUpdated,
+          relevanceScore: calculateRelevanceScore(query, dbResult.name, dbResult.definition)
+        })
+      }
+    })
+
+    // 4. 按相关性排序
+    allResults.sort((a, b) => b.relevanceScore - a.relevanceScore)
+
+    res.json({
+      success: true,
+      data: {
+        results: allResults,
+        total: allResults.length,
+        query,
+        subject: subject || 'all'
+      }
+    })
+  } catch (error) {
+    console.error('搜索知识点失败:', error)
+    res.status(500).json({
+      success: false,
+      error: '搜索知识点失败'
+    })
+  }
+});
+
+// 辅助函数：计算相关性得分
+function calculateRelevanceScore(query, name, definition) {
+  let score = 0
+  const queryLower = query.toLowerCase()
+  const nameLower = name.toLowerCase()
+  const definitionLower = definition.toLowerCase()
+  
+  // 名称完全匹配得分最高
+  if (nameLower === queryLower) score += 100
+  else if (nameLower.includes(queryLower)) score += 50
+  
+  // 定义中包含关键词
+  if (definitionLower.includes(queryLower)) score += 20
+  
+  return score
+}
+
+// 辅助函数：计算考试概率
+function calculateExamProbability(knowledgePointName) {
+  const examQuestions = examQuestionsData[knowledgePointName] || []
+  const recentYears = 5
+  const currentYear = new Date().getFullYear()
+  const recentQuestions = examQuestions.filter(q => 
+    currentYear - q.year <= recentYears
+  )
+  return Math.min(Math.round((recentQuestions.length / recentYears) * 100), 100)
+}
+
+// 辅助函数：计算年度统计
+function calculateYearlyStats(knowledgePointName) {
+  const examQuestions = examQuestionsData[knowledgePointName] || []
+  const recentYears = 5
+  const currentYear = new Date().getFullYear()
+  const yearlyStats = []
+  
+  for (let i = recentYears - 1; i >= 0; i--) {
+    const year = currentYear - i
+    const count = examQuestions.filter(q => q.year === year).length
+    yearlyStats.push({ year, count })
+  }
+  
+  return yearlyStats
+}
+
+
+
+// 获取知识点列表（按学科分组，支持知识突破状态）
+router.get('/list', async (req, res) => {
+  try {
+    const { subject } = req.query
+    
+    // 构建查询条件
+    const query = { isActive: true }
+    if (subject) {
+      query.subject = subject
+    }
+    
+    // 从数据库获取知识点
+    const knowledgePoints = await KnowledgePoint.find(query)
+      .select('name subject definition source examProbability lastUpdated difficulty userSolutions')
+      .sort({ subject: 1, name: 1 })
+    
+    // 按学科分组并添加知识突破状态
+    const groupedBySubject = {}
+    knowledgePoints.forEach(point => {
+      if (!groupedBySubject[point.subject]) {
+        groupedBySubject[point.subject] = []
+      }
+      
+      // 计算知识突破状态
+      const breakthroughStatus = calculateBreakthroughStatus(point)
+      
+      groupedBySubject[point.subject].push({
+        name: point.name,
+        definition: point.definition,
+        source: point.source,
+        examProbability: point.examProbability,
+        lastUpdated: point.lastUpdated,
+        difficulty: point.difficulty || '基础',
+        breakthroughStatus,
+        solutionCount: point.userSolutions ? point.userSolutions.length : 0
+      })
+    })
+    
+    res.json({
+      success: true,
+      data: groupedBySubject,
+      total: knowledgePoints.length,
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    console.error('获取知识点列表失败:', error)
+    res.status(500).json({
+      success: false,
+      error: '获取知识点列表失败'
+    })
+  }
+});
+
+// 计算知识突破状态
+function calculateBreakthroughStatus(knowledgePoint) {
+  const solutionCount = knowledgePoint.userSolutions ? knowledgePoint.userSolutions.length : 0
+  const examProbability = knowledgePoint.examProbability || 0
+  
+  if (solutionCount >= 3 && examProbability > 70) {
+    return 'mastered' // 已掌握
+  } else if (solutionCount >= 2 || examProbability > 50) {
+    return 'progressing' // 进步中
+  } else if (solutionCount >= 1 || examProbability > 20) {
+    return 'learning' // 学习中
+  } else {
+    return 'not_started' // 未开始
+  }
+}
+
+// ===== 参数路由必须放在最后 =====
+
 // @desc    获取知识点详细信息
 // @route   GET /api/knowledge-points/:knowledgePoint
 // @access  Private
@@ -128,9 +477,14 @@ router.get('/:knowledgePoint', async (req, res) => {
       cachedKnowledgePoint.lastFetched = new Date()
       await cachedKnowledgePoint.save()
       
+      // 计算知识突破状态
+      const breakthroughStatus = calculateBreakthroughStatus(cachedKnowledgePoint)
+      
       return res.json({
         success: true,
         data: {
+          name: cachedKnowledgePoint.name,
+          subject: cachedKnowledgePoint.subject,
           definition: cachedKnowledgePoint.definition,
           source: cachedKnowledgePoint.source,
           relatedConcepts: cachedKnowledgePoint.relatedConcepts,
@@ -140,7 +494,11 @@ router.get('/:knowledgePoint', async (req, res) => {
           lastUpdated: cachedKnowledgePoint.lastUpdated,
           isUserEdited: cachedKnowledgePoint.isUserEdited,
           needsUpdate: cachedKnowledgePoint.needsUpdate,
-          freshnessScore: cachedKnowledgePoint.freshnessScore
+          freshnessScore: cachedKnowledgePoint.freshnessScore,
+          difficulty: cachedKnowledgePoint.difficulty || '基础',
+          breakthroughStatus,
+          userSolutions: cachedKnowledgePoint.userSolutions || [],
+          solutionCount: cachedKnowledgePoint.userSolutions ? cachedKnowledgePoint.userSolutions.length : 0
         }
       })
     }
@@ -180,8 +538,8 @@ router.get('/:knowledgePoint', async (req, res) => {
 请确保内容准确、权威、易于理解。`
           
           const aiResponse = await aiService.generateStudyAdvice(
-            enhancedPrompt,
-            { subject: decodedSubject, knowledgePoint: decodedKnowledgePoint }
+            'system',
+            { prompt: enhancedPrompt, subject: decodedSubject, knowledgePoint: decodedKnowledgePoint }
           )
           
           // 检查AI响应是否成功
@@ -272,9 +630,14 @@ router.get('/:knowledgePoint', async (req, res) => {
       )
     }
 
+    // 计算知识突破状态
+    const breakthroughStatus = calculateBreakthroughStatus(cachedKnowledgePoint)
+    
     res.json({
       success: true,
       data: {
+        name: decodedKnowledgePoint,
+        subject: decodedSubject,
         definition,
         source,
         relatedConcepts,
@@ -284,7 +647,11 @@ router.get('/:knowledgePoint', async (req, res) => {
         lastUpdated: cachedKnowledgePoint.lastUpdated,
         isUserEdited: cachedKnowledgePoint.isUserEdited,
         needsUpdate: cachedKnowledgePoint.needsUpdate,
-        freshnessScore: cachedKnowledgePoint.freshnessScore
+        freshnessScore: cachedKnowledgePoint.freshnessScore,
+        difficulty: cachedKnowledgePoint.difficulty || '基础',
+        breakthroughStatus,
+        userSolutions: cachedKnowledgePoint.userSolutions || [],
+        solutionCount: cachedKnowledgePoint.userSolutions ? cachedKnowledgePoint.userSolutions.length : 0
       }
     })
 
@@ -310,16 +677,123 @@ router.put('/:knowledgePoint/update', async (req, res) => {
       })
     }
     
-    // 调用原有的获取逻辑，但强制更新
-    const response = await fetch(`${req.protocol}://${req.get('host')}/api/knowledge-points/${knowledgePoint}?subject=${subject}&forceUpdate=true`)
-    const data = await response.json()
+    // 修复UTF-8编码问题
+    function fixUtf8Encoding(str) {
+      try {
+        const testBuffer = Buffer.from(str, 'utf8')
+        if (testBuffer.toString('utf8') === str && !/[\u00C0-\u00FF]/.test(str)) {
+          return str
+        }
+        const buffer = Buffer.from(str, 'latin1')
+        return iconv.decode(buffer, 'utf8')
+      } catch (error) {
+        console.error('编码修复失败:', error)
+        return str.replace(/æ°å­¦/g, '数学').replace(/ç©ç/g, '物理').replace(/åå­¦/g, '化学')
+      }
+    }
     
-    res.json(data)
+    const decodedKnowledgePoint = fixUtf8Encoding(knowledgePoint)
+    const decodedSubject = fixUtf8Encoding(subject)
+    
+    // 直接删除缓存并重新获取，避免循环调用
+    await KnowledgePoint.deleteOne({
+      name: decodedKnowledgePoint,
+      subject: decodedSubject
+    })
+    
+    // 重新获取知识点信息
+    let knowledgeData = null
+    let source = 'fallback'
+    
+    // 1. 尝试从教材定义获取
+    if (textbookDefinitions[decodedSubject] && textbookDefinitions[decodedSubject][decodedKnowledgePoint]) {
+      const textbookData = textbookDefinitions[decodedSubject][decodedKnowledgePoint]
+      knowledgeData = {
+        definition: textbookData.definition,
+        relatedConcepts: textbookData.relatedConcepts
+      }
+      source = 'textbook'
+    }
+    
+    // 2. 如果教材没有，尝试AI生成
+    if (!knowledgeData) {
+      try {
+        const aiResponse = await aiService.generateKnowledgePointDefinition(decodedKnowledgePoint, decodedSubject)
+        if (aiResponse && aiResponse.definition) {
+          knowledgeData = aiResponse
+          source = 'ai'
+        }
+      } catch (aiError) {
+        console.error('AI生成知识点失败:', aiError)
+      }
+    }
+    
+    // 3. 如果AI也失败，使用默认数据
+    if (!knowledgeData) {
+      knowledgeData = {
+        definition: `${decodedKnowledgePoint}是${decodedSubject}学科中的重要概念，需要进一步学习和理解。`,
+        relatedConcepts: ['基础概念', '应用实例']
+      }
+      source = 'fallback'
+    }
+    
+    // 获取考试相关数据
+    const examQuestions = examQuestionsData[decodedKnowledgePoint] || []
+    const examProbability = calculateExamProbability(decodedKnowledgePoint)
+    const yearlyStats = calculateYearlyStats(decodedKnowledgePoint)
+    
+    // 保存到数据库
+    const newKnowledgePoint = new KnowledgePoint({
+      name: decodedKnowledgePoint,
+      subject: decodedSubject,
+      definition: knowledgeData.definition,
+      source: source,
+      relatedConcepts: knowledgeData.relatedConcepts || [],
+      examQuestions: examQuestions,
+      examProbability: examProbability,
+      yearlyStats: yearlyStats,
+      lastUpdated: new Date(),
+      fetchCount: 1,
+      lastFetched: new Date(),
+      isUserEdited: false,
+      needsUpdate: false,
+      freshnessScore: 100,
+      difficulty: '基础',
+      userSolutions: []
+    })
+    
+    await newKnowledgePoint.save()
+    
+    // 计算知识突破状态
+    const breakthroughStatus = calculateBreakthroughStatus(newKnowledgePoint)
+    
+    res.json({
+      success: true,
+      data: {
+        name: newKnowledgePoint.name,
+        subject: newKnowledgePoint.subject,
+        definition: newKnowledgePoint.definition,
+        source: newKnowledgePoint.source,
+        relatedConcepts: newKnowledgePoint.relatedConcepts,
+        examQuestions: newKnowledgePoint.examQuestions,
+        examProbability: newKnowledgePoint.examProbability,
+        yearlyStats: newKnowledgePoint.yearlyStats,
+        lastUpdated: newKnowledgePoint.lastUpdated,
+        isUserEdited: newKnowledgePoint.isUserEdited,
+        needsUpdate: newKnowledgePoint.needsUpdate,
+        freshnessScore: newKnowledgePoint.freshnessScore,
+        difficulty: newKnowledgePoint.difficulty,
+        breakthroughStatus,
+        userSolutions: newKnowledgePoint.userSolutions,
+        solutionCount: newKnowledgePoint.userSolutions.length
+      }
+    })
+    
   } catch (error) {
     console.error('强制更新知识点失败:', error)
     res.status(500).json({
       success: false,
-      error: '强制更新知识点失败'
+      error: '强制更新知识点失败: ' + error.message
     })
   }
 })
@@ -435,72 +909,8 @@ router.get('/:knowledgePoint/history', async (req, res) => {
   }
 })
 
-// @desc    搜索知识点
-// @route   GET /api/knowledge-points/search
-// @access  Private
-router.get('/search', async (req, res) => {
-  const { query, subject } = req.query
 
-  if (!query) {
-    return res.status(400).json({
-      success: false,
-      error: '请提供搜索关键词'
-    })
-  }
 
-  try {
-    // 从数据库搜索相关知识点
-    const searchConditions = {
-      isActive: true,
-      knowledgePoints: { $regex: query, $options: 'i' }
-    }
 
-    if (subject) {
-      searchConditions.subject = subject
-    }
-
-    const questions = await Question.find(searchConditions)
-      .select('knowledgePoints subject')
-      .limit(50)
-
-    // 提取并去重知识点
-    const knowledgePointsSet = new Set()
-    questions.forEach(q => {
-      q.knowledgePoints.forEach(kp => {
-        if (kp.toLowerCase().includes(query.toLowerCase())) {
-          knowledgePointsSet.add(kp)
-        }
-      })
-    })
-
-    // 添加教材中的知识点
-    Object.keys(textbookDefinitions).forEach(subj => {
-      if (!subject || subj === subject) {
-        Object.keys(textbookDefinitions[subj]).forEach(kp => {
-          if (kp.toLowerCase().includes(query.toLowerCase())) {
-            knowledgePointsSet.add(kp)
-          }
-        })
-      }
-    })
-
-    const knowledgePoints = Array.from(knowledgePointsSet).slice(0, 20)
-
-    res.json({
-      success: true,
-      data: {
-        knowledgePoints,
-        total: knowledgePoints.length
-      }
-    })
-
-  } catch (error) {
-    console.error('搜索知识点失败:', error)
-    res.status(500).json({
-      success: false,
-      error: '搜索知识点失败'
-    })
-  }
-});
 
 export default router

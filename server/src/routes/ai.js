@@ -3,8 +3,10 @@ import { body, query, validationResult } from 'express-validator'
 import { asyncHandler } from '../middleware/errorHandler.js'
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js'
 import aiService from '../services/aiService.js'
+import aiImageService from '../services/aiImageService.js'
 import StudyRecord from '../models/StudyRecord.js'
 import Question from '../models/Question.js'
+import KnowledgePoint from '../models/KnowledgePoint.js'
 
 const router = express.Router()
 
@@ -540,7 +542,19 @@ router.post('/chat', optionalAuthMiddleware, [
   body('chatHistory')
     .optional()
     .isArray({ max: 10 })
-    .withMessage('聊天历史不能超过10条消息')
+    .withMessage('聊天历史不能超过10条消息'),
+  body('ocrText')
+    .optional()
+    .isString()
+    .withMessage('OCR文本必须是字符串格式'),
+  body('imageData')
+    .optional()
+    .isString()
+    .withMessage('图片数据必须是字符串格式'),
+  body('mimeType')
+    .optional()
+    .isString()
+    .withMessage('图片类型必须是字符串格式')
 ], asyncHandler(async (req, res) => {
   // 检查验证错误
   const errors = validationResult(req)
@@ -551,17 +565,34 @@ router.post('/chat', optionalAuthMiddleware, [
     })
   }
 
-  const { message, questionContext, chatHistory } = req.body
+  const { message, questionContext, chatHistory, imageData, mimeType } = req.body
   
   // 构建上下文提示
   let contextPrompt = '你是一个专业的AI学习伴侣，专门帮助学生学习和解题。'
   
+  // 处理学科专属上下文
+  if (questionContext?.subjectContext?.isSubjectSelected && questionContext.subjectContext.currentSubject) {
+    const currentSubject = questionContext.subjectContext.currentSubject
+    contextPrompt = `你是一个专业的${currentSubject}AI助手，专门帮助学生学习${currentSubject}学科。你只回答与${currentSubject}相关的问题，如果学生问其他学科的问题，请礼貌地提醒他们你是${currentSubject}专属助手。`
+    
+    if (questionContext.subjectContext.subjectDescription) {
+      contextPrompt += `\n\n${currentSubject}学科特点：${questionContext.subjectContext.subjectDescription}`
+    }
+  }
+  
   if (questionContext) {
     contextPrompt += `\n\n当前题目信息：
     - 科目：${questionContext.subject}
-    - 难度：${questionContext.difficulty}
-    - 题目内容：${questionContext.content}
-    - 知识点：${questionContext.knowledgePoints?.join('、')}`
+    - 难度：${questionContext.difficulty}`
+    
+    // 如果有图片数据，说明是图片题目
+    if (imageData && mimeType) {
+      contextPrompt += `\n    - 题目类型：图片题目`
+    } else {
+      contextPrompt += `\n    - 题目内容：${questionContext.content}`
+    }
+    
+    contextPrompt += `\n    - 知识点：${questionContext.knowledgePoints?.join('、')}`
     
     if (questionContext.options) {
       contextPrompt += `\n- 选项：${questionContext.options.join('; ')}`
@@ -573,17 +604,76 @@ router.post('/chat', optionalAuthMiddleware, [
     }
   }
   
-  contextPrompt += `\n\n请基于以上题目信息回答学生的问题。你的回答应该：
-  1. 直接针对当前题目，无需重复描述题目内容
-  2. 提供具体的解题思路和方法
-  3. 解释相关知识点
-  4. 语言简洁明了，适合学生理解
-  5. 如果学生答错了，要耐心指导正确的思路
+  // 根据是否选择学科调整回答要求
+  if (questionContext?.subjectContext?.isSubjectSelected) {
+    const currentSubject = questionContext.subjectContext.currentSubject
+    contextPrompt += `\n\n请基于以上信息回答学生的${currentSubject}问题。你的回答应该：
+    1. 专注于${currentSubject}学科内容，不涉及其他学科
+    2. 提供${currentSubject}特有的解题思路和方法
+    3. 解释${currentSubject}相关知识点和概念
+    4. 使用${currentSubject}学科的专业术语和表达方式
+    5. 如果问题不属于${currentSubject}学科，请提醒学生你是${currentSubject}专属助手
+    6. 语言简洁明了，适合学生理解
+    7. 重要提醒：请确保所有回答内容都控制在高中及以下知识范围内，使用高中生能够理解的概念和术语，避免涉及大学或更高层次的专业知识
+    
+    **重要：数学公式格式要求**
+    - 必须使用严格的KaTeX兼容格式，严禁使用Unicode数学符号
+    - 行内公式请使用 $公式$ 格式，如：$x^2 + 2x - 3 = 0$
+    - 块级公式请使用 $$公式$$ 格式，如：$$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$
+    - KaTeX命令使用单反斜杠，如：\\frac、\\sqrt、\\pm
+    - 上标用^，下标用_，如：$x^2$、$a_1$
+    - 分数用\\frac{分子}{分母}，如：$\\frac{1}{2}$
+    - 根号用\\sqrt{}，如：$\\sqrt{16}$
+    - 正负号用\\pm，如：$\\pm 2$
+    - 积分用\\int，如：$\\int x dx$
+    - 求和用\\sum，如：$\\sum_{i=1}^{n} i$
+    - 禁止使用：∫、²、³、×、÷、±、≤、≥、≠、π等Unicode符号
+    - 必须用KaTeX：\\int、^2、^3、\\times、\\div、\\pm、\\leq、\\geq、\\neq、\\pi`
+  } else {
+    contextPrompt += `\n\n请基于以上题目信息回答学生的问题。你的回答应该：
+    1. 直接针对当前题目，无需重复描述题目内容
+    2. 提供具体的解题思路和方法
+    3. 解释相关知识点
+    4. 语言简洁明了，适合学生理解
+    5. 如果学生答错了，要耐心指导正确的思路
+    6. 重要提醒：请确保所有回答内容都控制在高中及以下知识范围内，使用高中生能够理解的概念和术语，避免涉及大学或更高层次的专业知识
+    
+    **重要：数学公式格式要求**
+    - 必须使用严格的KaTeX兼容格式，严禁使用Unicode数学符号
+    - 行内公式请使用 $公式$ 格式，如：$x^2 + 2x - 3 = 0$
+    - 块级公式请使用 $$公式$$ 格式，如：$$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$
+    - KaTeX命令使用单反斜杠，如：\\frac、\\sqrt、\\pm
+    - 上标用^，下标用_，如：$x^2$、$a_1$
+    - 分数用\\frac{分子}{分母}，如：$\\frac{1}{2}$
+    - 根号用\\sqrt{}，如：$\\sqrt{16}$
+    - 正负号用\\pm，如：$\\pm 2$
+    - 积分用\\int，如：$\\int x dx$
+    - 求和用\\sum，如：$\\sum_{i=1}^{n} i$
+    - 禁止使用：∫、²、³、×、÷、±、≤、≥、≠、π等Unicode符号
+    - 必须用KaTeX：\\int、^2、^3、\\times、\\div、\\pm、\\leq、\\geq、\\neq、\\pi`
+  }
   
-  学生的问题：${message}`
+  contextPrompt += `\n\n学生的问题：${message}`
   
-  const userId = req.user?.id || 'demo-user' // 使用演示用户ID
-  const result = await aiService.generateStudyAdvice(userId, { prompt: contextPrompt })
+  let result
+  
+  // 如果有图片数据，使用图片AI服务
+  if (imageData && mimeType) {
+    // 移除data:image/xxx;base64,前缀（如果存在）
+    const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, '')
+    
+    const context = {
+      subject: questionContext?.subject,
+      grade: questionContext?.grade,
+      examType: questionContext?.examType
+    }
+    
+    result = await aiImageService.chatWithImage(base64Data, contextPrompt, context)
+  } else {
+    // 使用普通AI服务
+    const userId = req.user?.id || 'demo-user'
+    result = await aiService.generateStudyAdvice(userId, { prompt: contextPrompt })
+  }
   
   if (!result.success) {
     return res.status(500).json({
@@ -594,7 +684,7 @@ router.post('/chat', optionalAuthMiddleware, [
   
   res.json({
     success: true,
-    response: result.advice
+    response: result.response || result.advice
   })
 }))
 
@@ -675,6 +765,465 @@ router.post('/analyze-progress', optionalAuthMiddleware, [
     success: true,
     suggestion: result.advice?.trim() || ''
   })
+}))
+
+// @desc    解析粘贴的题目内容
+// @route   POST /api/ai/parse-question
+// @access  Public
+router.post('/parse-question', optionalAuthMiddleware, [
+  body('content')
+    .trim()
+    .isLength({ min: 10, max: 2000 })
+    .withMessage('题目内容长度必须在10-2000个字符之间'),
+  body('currentSubject')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 20 })
+    .withMessage('当前学科名称不能超过20个字符')
+], asyncHandler(async (req, res) => {
+  // 检查验证错误
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      errors: errors.array()
+    })
+  }
+
+  const { content, currentSubject } = req.body
+  
+  try {
+    // 使用AI服务解析题目内容
+    const parsePrompt = `请分析以下粘贴的内容，判断是否为题目，并提取结构化信息：
+
+内容：${content}
+
+请按以下JSON格式返回：
+{
+  "isQuestion": true/false,
+  "subject": "学科名称",
+  "content": "题目内容",
+  "type": "选择题/填空题/解答题/判断题",
+  "difficulty": "easy/medium/hard",
+  "options": ["选项A", "选项B", "选项C", "选项D"] (仅选择题),
+  "correctAnswer": "正确答案",
+  "knowledgePoints": ["知识点1", "知识点2"],
+  "explanation": "题目解析"
+}
+
+如果不是题目，请返回 {"isQuestion": false, "reason": "不是题目的原因"}`
+
+    const aiResponse = await aiService.generateResponse(parsePrompt, {
+      maxTokens: 1000,
+      temperature: 0.3
+    })
+
+    let parsedQuestion
+    try {
+      // 尝试解析AI返回的JSON
+      const jsonMatch = aiResponse.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        parsedQuestion = JSON.parse(jsonMatch[0])
+      } else {
+        throw new Error('无法解析AI响应')
+      }
+    } catch (parseError) {
+      return res.status(400).json({
+        success: false,
+        message: '题目解析失败，请检查内容格式'
+      })
+    }
+
+    if (!parsedQuestion.isQuestion) {
+      return res.json({
+        success: false,
+        isQuestion: false,
+        reason: parsedQuestion.reason || '内容不是有效的题目格式'
+      })
+    }
+
+    // 检查学科匹配
+    const subjectMatch = !currentSubject || 
+      parsedQuestion.subject.includes(currentSubject) || 
+      currentSubject.includes(parsedQuestion.subject)
+
+    res.json({
+      success: true,
+      isQuestion: true,
+      question: {
+        id: `parsed_${Date.now()}`,
+        content: parsedQuestion.content,
+        subject: parsedQuestion.subject,
+        type: parsedQuestion.type,
+        difficulty: parsedQuestion.difficulty || 'medium',
+        options: parsedQuestion.options,
+        correctAnswer: parsedQuestion.correctAnswer,
+        explanation: parsedQuestion.explanation,
+        knowledgePoints: parsedQuestion.knowledgePoints || [],
+        createdAt: new Date()
+      },
+      subjectMatch,
+      suggestedSubject: parsedQuestion.subject
+    })
+
+  } catch (error) {
+    console.error('题目解析错误:', error)
+    res.status(500).json({
+      success: false,
+      message: 'AI服务暂时不可用，请稍后再试'
+    })
+  }
+}))
+
+// @desc    保存解析的题目到题库
+// @route   POST /api/ai/save-question
+// @access  Public
+router.post('/save-question', optionalAuthMiddleware, [
+  body('question')
+    .isObject()
+    .withMessage('题目信息必须是对象格式'),
+  body('question.content')
+    .trim()
+    .isLength({ min: 1 })
+    .withMessage('题目内容不能为空'),
+  body('question.subject')
+    .trim()
+    .isLength({ min: 1 })
+    .withMessage('学科不能为空')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      errors: errors.array()
+    })
+  }
+
+  const { question } = req.body
+  
+  // 调试日志
+  console.log('接收到的题目数据:')
+  console.log('SVG数据存在:', !!question.svgData)
+  console.log('SVG数据长度:', question.svgData ? question.svgData.length : 0)
+  console.log('图形属性存在:', !!question.figureProperties)
+  console.log('包含几何图形:', question.hasGeometryFigure)
+  
+  try {
+    // 创建新题目
+    const newQuestion = new Question({
+      content: question.content,
+      subject: question.subject,
+      type: question.type || 'other',
+      difficulty: question.difficulty || 'medium',
+      options: question.options,
+      correctAnswer: question.correctAnswer,
+      explanation: question.explanation,
+      knowledgePoints: question.knowledgePoints || [],
+      svgData: question.svgData,
+      figureProperties: question.figureProperties,
+      hasGeometryFigure: question.hasGeometryFigure || false,
+      source: 'user_paste',
+      createdBy: req.user?.id || null,
+      isActive: true
+    })
+
+    await newQuestion.save()
+
+    res.json({
+      success: true,
+      message: '题目已成功添加到题库',
+      questionId: newQuestion._id
+    })
+
+  } catch (error) {
+    console.error('保存题目错误:', error)
+    res.status(500).json({
+      success: false,
+      message: '保存题目失败，请稍后再试'
+    })
+  }
+}))
+
+// @desc    获取最近粘贴的题目
+// @route   GET /api/ai/recent-questions
+// @access  Public
+router.get('/recent-questions', optionalAuthMiddleware, [
+  query('subject')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 20 })
+    .withMessage('学科名称不能超过20个字符'),
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 20 })
+    .withMessage('数量限制必须在1-20之间')
+], asyncHandler(async (req, res) => {
+  const { subject, limit = 10 } = req.query
+  
+  try {
+    const query = {
+      source: 'user_paste',
+      isActive: true
+    }
+    
+    if (subject) {
+      query.subject = { $regex: subject, $options: 'i' }
+    }
+    
+    if (req.user?.id) {
+      query.createdBy = req.user.id
+    }
+
+    const recentQuestions = await Question.find(query)
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .select('content subject difficulty type options knowledgePoints createdAt')
+
+    res.json({
+      success: true,
+      questions: recentQuestions
+    })
+
+  } catch (error) {
+    console.error('获取最近题目错误:', error)
+    res.status(500).json({
+      success: false,
+      message: '获取题目列表失败'
+    })
+  }
+}))
+
+// @desc    生成实时答题方案
+// @route   POST /api/ai/solutions
+// @access  Public (可选身份验证)
+router.post('/solutions', optionalAuthMiddleware, [
+  body('question')
+    .trim()
+    .isLength({ min: 1, max: 2000 })
+    .withMessage('题目内容不能为空且不能超过2000个字符'),
+  body('subject')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 20 })
+    .withMessage('学科名称不能超过20个字符'),
+  body('difficulty')
+    .optional()
+    .isIn(['easy', 'medium', 'hard'])
+    .withMessage('请选择有效的难度等级'),
+  body('imageData')
+    .optional()
+    .isString()
+    .withMessage('图片数据必须是字符串格式'),
+  body('mimeType')
+    .optional()
+    .isString()
+    .withMessage('图片类型必须是字符串格式'),
+  body('chatHistory')
+    .optional()
+    .isArray({ max: 10 })
+    .withMessage('聊天历史不能超过10条消息')
+], asyncHandler(async (req, res) => {
+  // 检查验证错误
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      errors: errors.array()
+    })
+  }
+
+  const { question, subject, difficulty, options, knowledgePoints, imageData, mimeType, chatHistory, ocrText } = req.body
+  
+  let prompt = `请为以下题目生成3个不同的解题方案：\n\n`
+  
+  // 如果有聊天历史，添加上下文信息
+  if (chatHistory && chatHistory.length > 0) {
+    prompt += `用户最近的问题历史：\n`
+    chatHistory.forEach((chat, index) => {
+      if (chat.type === 'user') {
+        prompt += `${index + 1}. ${chat.content}\n`
+      }
+    })
+    prompt += `\n基于以上问题历史，请生成针对性的解题方案：\n\n`
+  }
+  
+  // 如果有OCR文本，优先使用OCR识别的内容
+  if (ocrText) {
+    prompt += `题目内容（OCR识别）：${ocrText}\n`
+    if (question !== ocrText) {
+      prompt += `题目描述：${question}\n`
+    }
+  } else if (imageData && mimeType) {
+    prompt += `题目类型：图片题目\n题目内容：${question}\n`
+  } else {
+    prompt += `题目内容：${question}\n`
+  }
+  
+  if (subject) {
+    prompt += `学科：${subject}\n`
+  }
+  if (difficulty) {
+    prompt += `难度：${difficulty}\n`
+  }
+  if (options && options.length > 0) {
+    prompt += `选项：${options.join('; ')}\n`
+  }
+  if (knowledgePoints && knowledgePoints.length > 0) {
+    prompt += `知识点：${knowledgePoints.join('、')}\n`
+  }
+  
+  prompt += `\n请提供3种不同的解题思路和方法，每种方案包括：
+  1. 解题思路
+  2. 具体步骤
+  3. 关键要点
+  4. 常见错误提醒
+  
+  **重要：数学公式格式要求**
+  - 必须使用KaTeX兼容格式，严禁使用Unicode数学符号
+  - 行内公式请使用 $公式$ 格式，如：$x^2 + 2x - 3 = 0$
+  - 块级公式请使用 $$公式$$ 格式，如：$$x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$$
+  - KaTeX命令使用单反斜杠，如：\frac、\sqrt、\pm
+  - 上标用^，下标用_，如：$x^2$、$a_1$
+  - 分数用\frac{分子}{分母}，如：$\frac{1}{2}$
+  - 根号用\sqrt{}，如：$\sqrt{16}$
+  - 正负号用\pm，如：$\pm 2$
+  - 积分用\int，如：$\int x dx$
+  - 求和用\sum，如：$\sum_{i=1}^{n} i$
+  - 禁止使用：∫、²、³、×、÷、±、≤、≥、≠、π等Unicode符号
+  - 必须用KaTeX：\int、^2、^3、\times、\div、\pm、\leq、\geq、\neq、\pi
+  
+  **重要：必须严格按照以下JSON格式返回，不要添加任何其他文本：**
+  {
+    "solutions": [
+      {
+        "title": "方案标题",
+        "approach": "解题思路",
+        "steps": ["步骤1", "步骤2", "步骤3"],
+        "keyPoints": ["要点1", "要点2"],
+        "commonMistakes": ["错误1", "错误2"]
+      }
+    ]
+  }
+  
+  确保返回的是有效的JSON格式，不要包含任何解释性文字。`
+  
+  let result
+  
+  try {
+    // 如果有图片数据，使用图片AI服务
+    if (imageData && mimeType) {
+      const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, '')
+      
+      const context = {
+        subject: subject,
+        difficulty: difficulty
+      }
+      
+      result = await aiImageService.chatWithImage(base64Data, prompt, context)
+    } else {
+      // 使用普通AI服务生成结构化响应
+      result = await aiService.generateResponse(prompt, {
+        systemMessage: '你是一名专业的解题专家，专门为学生提供详细的解题方案。重要提醒：确保所有解题方案和知识点都控制在高中及以下知识范围内，使用高中生能够理解的概念和术语，避免涉及大学或更高层次的专业知识。如需要返回专业的概念涉及到公式，请严格按照标准的Katex格式。整个内容请严格按照要求的JSON格式返回结果，不要添加任何其他文本。',
+        temperature: 0.3
+      })
+      
+      // 将generateResponse的返回格式转换为标准格式
+      if (result) {
+        result = {
+          success: true,
+          response: result
+        }
+      } else {
+        result = {
+          success: false,
+          error: 'AI服务返回空结果'
+        }
+      }
+    }
+    
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        error: result.error || 'AI服务暂时不可用，请稍后再试'
+      })
+    }
+    
+    // 尝试解析AI返回的JSON
+    let solutions = []
+    try {
+      const responseText = result.response || result.advice
+      console.log('AI原始响应:', responseText)
+      
+      // 清理响应文本，移除可能的markdown代码块标记
+      let cleanedText = responseText.trim()
+      if (cleanedText.startsWith('```json')) {
+        cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '')
+      } else if (cleanedText.startsWith('```')) {
+        cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '')
+      }
+      
+      // 尝试直接解析JSON
+      let parsed
+      try {
+        parsed = JSON.parse(cleanedText)
+      } catch (directParseError) {
+        // 如果直接解析失败，尝试提取JSON部分
+        const jsonMatch = cleanedText.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          parsed = JSON.parse(jsonMatch[0])
+        } else {
+          throw new Error('无法找到有效的JSON格式')
+        }
+      }
+      
+      solutions = parsed.solutions || []
+      console.log('解析得到的solutions:', solutions)
+      
+    } catch (parseError) {
+      console.error('解析AI响应失败:', parseError)
+      console.error('原始响应文本:', result.response || result.advice)
+      
+      // 如果解析失败，返回原始文本作为单个方案
+      solutions = [{
+        title: '解题方案',
+        approach: result.response || result.advice,
+        steps: [],
+        keyPoints: [],
+        commonMistakes: []
+      }]
+    }
+    
+    // 自动存储知识点
+    if (knowledgePoints && knowledgePoints.length > 0 && subject) {
+      try {
+        for (const knowledgePointName of knowledgePoints) {
+          if (knowledgePointName && knowledgePointName.trim()) {
+            await KnowledgePoint.findOrCreate(knowledgePointName.trim(), subject, {
+              definition: `${knowledgePointName}相关知识点`,
+              source: 'ai',
+              relatedConcepts: knowledgePoints.filter(kp => kp !== knowledgePointName)
+            })
+          }
+        }
+        console.log('知识点自动存储完成')
+      } catch (kpError) {
+        console.error('知识点自动存储失败:', kpError)
+        // 不影响主要功能，继续返回结果
+      }
+    }
+
+    res.json({
+      success: true,
+      solutions: solutions
+    })
+    
+  } catch (error) {
+    console.error('生成答题方案失败:', error)
+    res.status(500).json({
+      success: false,
+      error: '生成答题方案失败，请稍后重试'
+    })
+  }
 }))
 
 export default router

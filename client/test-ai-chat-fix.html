@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI聊天功能测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            white-space: pre-wrap;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+        }
+    </style>
+</head>
+<body>
+    <h1>AI聊天功能测试</h1>
+    
+    <div class="test-section">
+        <h3>测试AI聊天API</h3>
+        <button onclick="testAIChat()">测试AI聊天</button>
+        <div id="chatResult" class="result"></div>
+    </div>
+
+    <script>
+        async function testAIChat() {
+            const resultDiv = document.getElementById('chatResult');
+            resultDiv.textContent = '正在测试AI聊天功能...';
+            resultDiv.className = 'result';
+            
+            try {
+                const requestBody = {
+                    message: '你好，请帮我解释一下什么是函数？',
+                    questionContext: {
+                        subject: '数学',
+                        difficulty: 'medium',
+                        content: '求函数f(x) = x² + 2x + 1的最小值',
+                        knowledgePoints: ['二次函数', '最值问题']
+                    }
+                };
+                
+                console.log('发送请求:', requestBody);
+                
+                const response = await fetch('/api/ai/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                console.log('响应状态:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+                
+                const data = await response.json();
+                console.log('响应数据:', data);
+                
+                if (data.success && data.response) {
+                    resultDiv.textContent = `✅ AI聊天功能正常！\n\nAI回复: ${data.response}`;
+                    resultDiv.className = 'result success';
+                } else {
+                    resultDiv.textContent = `❌ AI聊天功能异常\n\n响应数据: ${JSON.stringify(data, null, 2)}`;
+                    resultDiv.className = 'result error';
+                }
+                
+            } catch (error) {
+                console.error('AI聊天测试失败:', error);
+                resultDiv.textContent = `❌ AI聊天测试失败\n\n错误信息: ${error.message}`;
+                resultDiv.className = 'result error';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识点功能测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        .result { margin-top: 10px; padding: 10px; background: #f5f5f5; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d32; }
+    </style>
+</head>
+<body>
+    <h1>知识点功能测试</h1>
+    
+    <div class="test-section">
+        <h3>测试知识点API调用</h3>
+        <button onclick="testKnowledgePoint()">测试获取导数知识点</button>
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        async function testKnowledgePoint() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '正在测试...';
+            
+            try {
+                const response = await fetch('http://localhost:5001/api/knowledge-points/导数?subject=数学');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('API响应:', data);
+                
+                // 模拟前端组件的数据处理逻辑
+                if (!data || !data.success || !data.data) {
+                    throw new Error(data?.error || 'API响应数据格式错误');
+                }
+                
+                const knowledgeData = data.data;
+                if (!knowledgeData.definition) {
+                    throw new Error('知识点定义数据缺失');
+                }
+                
+                resultDiv.className = 'result success';
+                resultDiv.innerHTML = `
+                    <h4>✅ 测试成功！</h4>
+                    <p><strong>定义:</strong> ${knowledgeData.definition}</p>
+                    <p><strong>来源:</strong> ${knowledgeData.source}</p>
+                    <p><strong>相关概念:</strong> ${knowledgeData.relatedConcepts?.join(', ') || '无'}</p>
+                    <p><strong>考试概率:</strong> ${knowledgeData.examProbability || 0}%</p>
+                `;
+                
+            } catch (error) {
+                console.error('测试失败:', error);
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `
+                    <h4>❌ 测试失败</h4>
+                    <p><strong>错误信息:</strong> ${error.message}</p>
+                    <p><strong>错误类型:</strong> ${error.name}</p>
+                `;
+            }
+        }
+        
+        // 页面加载时自动运行测试
+        window.onload = function() {
+            console.log('页面加载完成，准备测试知识点功能');
+        };
+    </script>
+</body>
+</html>

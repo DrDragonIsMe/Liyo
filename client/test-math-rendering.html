@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数学公式渲染测试</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: #f9fafb;
+        }
+        .test-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #374151;
+        }
+        .formula-test {
+            margin: 15px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 6px;
+            border-left: 4px solid #3b82f6;
+        }
+        .formula-label {
+            font-weight: 600;
+            color: #6b7280;
+            margin-bottom: 8px;
+        }
+        .formula-content {
+            font-family: 'Times New Roman', serif;
+            font-size: 16px;
+            line-height: 1.8;
+        }
+        .error {
+            color: #dc2626;
+            background: #fef2f2;
+            padding: 8px;
+            border-radius: 4px;
+            border-left: 4px solid #dc2626;
+        }
+        .success {
+            color: #059669;
+            background: #f0fdf4;
+            padding: 8px;
+            border-radius: 4px;
+            border-left: 4px solid #059669;
+        }
+        .raw-text {
+            background: #f3f4f6;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .test-button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        .test-button:hover {
+            background: #2563eb;
+        }
+    </style>
+</head>
+<body>
+    <h1>数学公式渲染测试 - Azure GPT-4 LaTeX 语法适配</h1>
+    
+    <div class="test-section">
+        <div class="test-title">1. 常见的Azure GPT-4生成的LaTeX公式格式</div>
+        
+        <div class="formula-test">
+            <div class="formula-label">行内公式 - 基本格式:</div>
+            <div class="formula-content" id="inline-basic">这是一个行内公式 $x^2 + y^2 = z^2$，应该正常显示。</div>
+            <div class="raw-text">原始文本: 这是一个行内公式 $x^2 + y^2 = z^2$，应该正常显示。</div>
+        </div>
+        
+        <div class="formula-test">
+            <div class="formula-label">块级公式 - 基本格式:</div>
+            <div class="formula-content" id="block-basic">
+                求解二次方程的公式：
+                $$x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$$
+            </div>
+            <div class="raw-text">原始文本: $$x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$$</div>
+        </div>
+        
+        <div class="formula-test">
+            <div class="formula-label">Azure GPT-4常见的复杂公式:</div>
+            <div class="formula-content" id="complex-formula">
+                积分公式：$$\int_{-\infty}^{\infty} e^{-x^2} dx = \sqrt{\pi}$$
+                
+                矩阵表示：$$\begin{pmatrix} a & b \\ c & d \end{pmatrix}$$
+                
+                求和公式：$$\sum_{n=1}^{\infty} \frac{1}{n^2} = \frac{\pi^2}{6}$$
+            </div>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">2. 可能的问题格式测试</div>
+        
+        <div class="formula-test">
+            <div class="formula-label">转义字符问题:</div>
+            <div class="formula-content" id="escape-test">
+                可能的转义问题：$\\frac{1}{2}$ 或 $\frac{1}{2}$
+            </div>
+        </div>
+        
+        <div class="formula-test">
+            <div class="formula-label">多行公式:</div>
+            <div class="formula-content" id="multiline-test">
+                $$\begin{align}
+                f(x) &= ax^2 + bx + c \\
+                f'(x) &= 2ax + b \\
+                f''(x) &= 2a
+                \end{align}$$
+            </div>
+        </div>
+        
+        <div class="formula-test">
+            <div class="formula-label">混合文本和公式:</div>
+            <div class="formula-content" id="mixed-test">
+                当 $a > 0$ 时，函数 $f(x) = ax^2 + bx + c$ 的最小值为 $f\left(-\frac{b}{2a}\right) = c - \frac{b^2}{4a}$。
+            </div>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">3. 实时测试Azure GPT-4生成的答题方案</div>
+        
+        <button class="test-button" onclick="testRealTimeSolutions()">测试实时答题方案API</button>
+        <button class="test-button" onclick="testMathFormulas()">测试数学公式渲染</button>
+        
+        <div id="api-test-result" style="margin-top: 20px;"></div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">4. 渲染状态检查</div>
+        <div id="render-status"></div>
+    </div>
+
+    <script>
+        // 初始化KaTeX渲染
+        document.addEventListener("DOMContentLoaded", function() {
+            renderMathInElement(document.body, {
+                delimiters: [
+                    {left: "$$", right: "$$", display: true},
+                    {left: "$", right: "$", display: false}
+                ],
+                throwOnError: false,
+                errorColor: '#cc0000',
+                strict: false
+            });
+            
+            checkRenderStatus();
+        });
+        
+        function checkRenderStatus() {
+            const statusDiv = document.getElementById('render-status');
+            const mathElements = document.querySelectorAll('.katex, .katex-display');
+            const errorElements = document.querySelectorAll('.katex-error');
+            
+            let status = `<div class="success">✅ KaTeX已加载，找到 ${mathElements.length} 个渲染的公式</div>`;
+            
+            if (errorElements.length > 0) {
+                status += `<div class="error">❌ 发现 ${errorElements.length} 个渲染错误</div>`;
+                errorElements.forEach((el, i) => {
+                    status += `<div class="raw-text">错误 ${i+1}: ${el.textContent}</div>`;
+                });
+            }
+            
+            statusDiv.innerHTML = status;
+        }
+        
+        async function testRealTimeSolutions() {
+            const resultDiv = document.getElementById('api-test-result');
+            resultDiv.innerHTML = '<div>🔄 正在测试实时答题方案API...</div>';
+            
+            try {
+                const response = await fetch('/api/ai/solutions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        question: '求解方程 x² + 2x - 3 = 0',
+                        subject: '数学',
+                        difficulty: 'medium'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.solutions) {
+                    let html = '<div class="success">✅ API调用成功，生成了答题方案</div>';
+                    
+                    data.solutions.forEach((solution, index) => {
+                        html += `
+                            <div class="formula-test">
+                                <div class="formula-label">方案 ${index + 1}: ${solution.title || '解题方案'}</div>
+                                <div class="formula-content solution-content">
+                                    <strong>解题思路:</strong> ${solution.approach || ''}<br>
+                                    <strong>步骤:</strong> ${(solution.steps || []).join('<br>')}<br>
+                                    <strong>关键要点:</strong> ${(solution.keyPoints || []).join('<br>')}
+                                </div>
+                                <div class="raw-text">原始JSON: ${JSON.stringify(solution, null, 2)}</div>
+                            </div>
+                        `;
+                    });
+                    
+                    resultDiv.innerHTML = html;
+                    
+                    // 重新渲染数学公式
+                    setTimeout(() => {
+                        renderMathInElement(resultDiv, {
+                            delimiters: [
+                                {left: "$$", right: "$$", display: true},
+                                {left: "$", right: "$", display: false}
+                            ],
+                            throwOnError: false,
+                            errorColor: '#cc0000'
+                        });
+                        checkRenderStatus();
+                    }, 100);
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ API返回错误: ${data.error || '未知错误'}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ 请求失败: ${error.message}</div>`;
+            }
+        }
+        
+        function testMathFormulas() {
+            const testFormulas = [
+                'x^2 + y^2 = z^2',
+                '\\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}',
+                '\\int_{0}^{1} x^2 dx = \\frac{1}{3}',
+                '\\sum_{n=1}^{\\infty} \\frac{1}{n^2} = \\frac{\\pi^2}{6}'
+            ];
+            
+            const resultDiv = document.getElementById('api-test-result');
+            let html = '<div class="test-title">数学公式渲染测试结果:</div>';
+            
+            testFormulas.forEach((formula, index) => {
+                html += `
+                    <div class="formula-test">
+                        <div class="formula-label">测试公式 ${index + 1}:</div>
+                        <div class="formula-content">$${formula}$</div>
+                        <div class="raw-text">LaTeX: ${formula}</div>
+                    </div>
+                `;
+            });
+            
+            resultDiv.innerHTML = html;
+            
+            // 重新渲染数学公式
+            setTimeout(() => {
+                renderMathInElement(resultDiv, {
+                    delimiters: [
+                        {left: "$$", right: "$$", display: true},
+                        {left: "$", right: "$", display: false}
+                    ],
+                    throwOnError: false,
+                    errorColor: '#cc0000'
+                });
+                checkRenderStatus();
+            }, 100);
+        }
+    </script>
+</body>
+</html>

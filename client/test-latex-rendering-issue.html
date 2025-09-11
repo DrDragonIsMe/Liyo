@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LaTeX渲染问题测试</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+        .test-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #007acc;
+            padding-bottom: 5px;
+        }
+        .original-content {
+            background: #fff;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #ffa500;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+        }
+        .rendered-content {
+            background: #fff;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #28a745;
+            margin: 10px 0;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .loading { background: #d1ecf1; color: #0c5460; }
+        .success { background: #d4edda; color: #155724; }
+        .error-status { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>🔍 LaTeX渲染问题诊断</h1>
+    <p>测试知识点中LaTeX公式的渲染情况，检查是否存在"有些是公式，有些还是原来的语法"的问题。</p>
+    
+    <div id="status" class="status loading">正在获取知识点数据...</div>
+    
+    <div class="test-section">
+        <div class="test-title">1. 配方法知识点 - 原始数据</div>
+        <div class="original-content" id="original-content">加载中...</div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">2. 模拟MarkdownRenderer处理后的内容</div>
+        <div class="rendered-content" id="processed-content">处理中...</div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">3. KaTeX最终渲染效果</div>
+        <div class="rendered-content" id="final-render">渲染中...</div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">4. 问题诊断结果</div>
+        <div id="diagnosis" class="rendered-content">分析中...</div>
+    </div>
+
+    <script>
+        // 模拟MarkdownRenderer的预处理函数
+        function preprocessLatex(text) {
+            return text
+                // 清理中文标点符号
+                .replace(/，/g, ',')
+                .replace(/。/g, '.')
+                .replace(/；/g, ';')
+                .replace(/：/g, ':')
+                .replace(/？/g, '?')
+                .replace(/！/g, '!')
+                .replace(/（/g, '(')
+                .replace(/）/g, ')')
+                .replace(/【/g, '[')
+                .replace(/】/g, ']')
+                .replace(/「/g, '"')
+                .replace(/」/g, '"')
+                .replace(/『/g, '"')
+                .replace(/』/g, '"')
+                // 处理双反斜杠转义问题
+                .replace(/\\\\frac/g, '\\frac')
+                .replace(/\\\\sqrt/g, '\\sqrt')
+                .replace(/\\\\pm/g, '\\pm')
+                .replace(/\\\\times/g, '\\times')
+                .replace(/\\\\div/g, '\\div')
+                .replace(/\\\\cdot/g, '\\cdot')
+                .replace(/\\\\sum/g, '\\sum')
+                .replace(/\\\\int/g, '\\int')
+                .replace(/\\\\lim/g, '\\lim')
+                .replace(/\\\\sin/g, '\\sin')
+                .replace(/\\\\cos/g, '\\cos')
+                .replace(/\\\\tan/g, '\\tan')
+                .replace(/\\\\log/g, '\\log')
+                .replace(/\\\\ln/g, '\\ln')
+                .replace(/\\\\alpha/g, '\\alpha')
+                .replace(/\\\\beta/g, '\\beta')
+                .replace(/\\\\gamma/g, '\\gamma')
+                .replace(/\\\\delta/g, '\\delta')
+                .replace(/\\\\pi/g, '\\pi')
+                .replace(/\\\\theta/g, '\\theta')
+                .replace(/\\\\infty/g, '\\infty')
+                .replace(/\\\\leq/g, '\\leq')
+                .replace(/\\\\geq/g, '\\geq')
+                .replace(/\\\\neq/g, '\\neq')
+                .replace(/\\\\approx/g, '\\approx')
+                .replace(/\\\\equiv/g, '\\equiv')
+                .replace(/\\\\begin/g, '\\begin')
+                .replace(/\\\\end/g, '\\end')
+                .replace(/\\\\left/g, '\\left')
+                .replace(/\\\\right/g, '\\right')
+                // 处理常见的Unicode数学符号
+                .replace(/×/g, '\\times')
+                .replace(/÷/g, '\\div')
+                .replace(/±/g, '\\pm')
+                .replace(/≤/g, '\\leq')
+                .replace(/≥/g, '\\geq')
+                .replace(/≠/g, '\\neq')
+                .replace(/≈/g, '\\approx')
+                .replace(/∞/g, '\\infty')
+                .replace(/π/g, '\\pi')
+                .replace(/α/g, '\\alpha')
+                .replace(/β/g, '\\beta')
+                .replace(/γ/g, '\\gamma')
+                .replace(/δ/g, '\\delta')
+                .replace(/θ/g, '\\theta')
+                // 处理上下标的Unicode字符
+                .replace(/²/g, '^2')
+                .replace(/³/g, '^3')
+                .replace(/¹/g, '^1')
+                .replace(/₁/g, '_1')
+                .replace(/₂/g, '_2')
+                .replace(/₃/g, '_3');
+        }
+        
+        function cleanMathContent(mathContent) {
+            return mathContent
+                // 移除中文标点符号
+                .replace(/[，。；：？！（）【】「」『』]/g, '')
+                // 移除中文字符
+                .replace(/[\u4e00-\u9fff]/g, '')
+                // 清理多余空格
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+        
+        async function testLatexRendering() {
+            try {
+                // 使用配方法知识点的实际数据
+                const originalContent = `配方法是解一元二次方程的一种重要方法。对于一般形式的一元二次方程 $ax^2 + bx + c = 0$ (其中 $a \\neq 0$)，我们可以通过配方将其转化为 $(x + m)^2 = n$ 的形式。\n\n具体步骤如下：\n\n1. **移项**：将常数项移到等号右边\n   $ax^2 + bx = -c$\n\n2. **系数化1**：将二次项系数化为1\n   $x^2 + \\frac{b}{a}x = -\\frac{c}{a}$\n\n3. **配方**：在等式两边同时加上一次项系数一半的平方\n   $x^2 + \\frac{b}{a}x + \\left(\\frac{b}{2a}\\right)^2 = -\\frac{c}{a} + \\left(\\frac{b}{2a}\\right)^2$\n\n4. **化简**：左边配成完全平方式\n   $$\\left(x + \\frac{b}{2a}\\right)^2 = \\frac{b^2 - 4ac}{4a^2}$$\n\n5. **开方求解**：\n   - 当判别式 $\\Delta = b^2 - 4ac > 0$ 时，方程有两个不相等的实数根\n   - 当判别式 $\\Delta = b^2 - 4ac = 0$ 时，方程有两个相等的实数根\n   - 当判别式 $\\Delta = b^2 - 4ac < 0$ 时，方程无实数根\n\n**示例**：解方程 $x^2 + 4x + 1 = 0$\n\n解：$x^2 + 4x = -1$\n\n配方：$x^2 + 4x + 4 = -1 + 4$\n\n即：$(x + 2)^2 = 3$\n\n开方：$x + 2 = \\pm\\sqrt{3}$\n\n所以：$x = -2 \\pm \\sqrt{3}$`;
+                document.getElementById('original-content').textContent = originalContent;
+                
+                // 模拟MarkdownRenderer的处理过程
+                const processedContent = preprocessLatex(originalContent);
+                document.getElementById('processed-content').innerHTML = processedContent.replace(/\n/g, '<br>');
+                
+                // 最终渲染
+                document.getElementById('final-render').innerHTML = processedContent.replace(/\n/g, '<br>');
+                
+                // 诊断分析
+                const diagnosis = [];
+                
+                // 检查LaTeX公式
+                const inlineMathMatches = originalContent.match(/\$[^$]+\$/g) || [];
+                const blockMathMatches = originalContent.match(/\$\$[^$]+\$\$/g) || [];
+                const unicodeSymbols = originalContent.match(/[²³¹₁₂₃×÷±≤≥≠≈∞π]/g) || [];
+                const doubleBackslashes = originalContent.match(/\\\\/g) || [];
+                
+                diagnosis.push(`<h4>LaTeX公式分析：</h4>`);
+                diagnosis.push(`<ul>`);
+                diagnosis.push(`<li>行内公式数量: ${inlineMathMatches.length}</li>`);
+                diagnosis.push(`<li>块级公式数量: ${blockMathMatches.length}</li>`);
+                diagnosis.push(`<li>Unicode符号数量: ${unicodeSymbols.length}</li>`);
+                diagnosis.push(`<li>双反斜杠问题: ${doubleBackslashes.length}</li>`);
+                diagnosis.push(`</ul>`);
+                
+                if (inlineMathMatches.length > 0) {
+                    diagnosis.push(`<h4>行内公式：</h4>`);
+                    diagnosis.push(`<ul>`);
+                    inlineMathMatches.forEach((match, i) => {
+                        diagnosis.push(`<li><code>${match}</code></li>`);
+                    });
+                    diagnosis.push(`</ul>`);
+                }
+                
+                if (blockMathMatches.length > 0) {
+                    diagnosis.push(`<h4>块级公式：</h4>`);
+                    diagnosis.push(`<ul>`);
+                    blockMathMatches.forEach((match, i) => {
+                        diagnosis.push(`<li><code>${match}</code></li>`);
+                    });
+                    diagnosis.push(`</ul>`);
+                }
+                
+                if (unicodeSymbols.length > 0) {
+                    diagnosis.push(`<h4>Unicode符号：</h4>`);
+                    diagnosis.push(`<p><code>${unicodeSymbols.join(', ')}</code></p>`);
+                }
+                
+                document.getElementById('diagnosis').innerHTML = diagnosis.join('');
+                
+                // 渲染数学公式
+                setTimeout(() => {
+                    renderMathInElement(document.body, {
+                        delimiters: [
+                            {left: '$$', right: '$$', display: true},
+                            {left: '$', right: '$', display: false}
+                        ],
+                        throwOnError: false,
+                        errorCallback: function(msg, err) {
+                            console.error('KaTeX渲染错误:', msg, err);
+                            diagnosis.push(`<div class="error">KaTeX错误: ${msg}</div>`);
+                            document.getElementById('diagnosis').innerHTML = diagnosis.join('');
+                        }
+                    });
+                    
+                    document.getElementById('status').textContent = '✅ 测试完成';
+                    document.getElementById('status').className = 'status success';
+                }, 100);
+                
+            } catch (error) {
+                console.error('测试失败:', error);
+                document.getElementById('status').textContent = `❌ 测试失败: ${error.message}`;
+                document.getElementById('status').className = 'status error-status';
+                
+                document.getElementById('original-content').textContent = '获取数据失败';
+                document.getElementById('processed-content').textContent = '处理失败';
+                document.getElementById('final-render').textContent = '渲染失败';
+                document.getElementById('diagnosis').innerHTML = `<div class="error">错误: ${error.message}</div>`;
+            }
+        }
+        
+        // 页面加载完成后开始测试
+        document.addEventListener('DOMContentLoaded', testLatexRendering);
+    </script>
+</body>
+</html>

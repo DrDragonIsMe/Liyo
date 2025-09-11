@@ -1,0 +1,198 @@
+{
+  "subject": "数学",
+  "description": "数学学科测试题目集合",
+  "knowledge_points": [
+    {
+      "name": "函数与方程",
+      "description": "一次函数、二次函数、指数函数、对数函数等基本函数性质及方程求解"
+    },
+    {
+      "name": "三角函数",
+      "description": "三角函数的定义、性质、图像变换及恒等变形"
+    },
+    {
+      "name": "数列",
+      "description": "等差数列、等比数列的通项公式和求和公式"
+    },
+    {
+      "name": "立体几何",
+      "description": "空间几何体的表面积、体积计算及空间位置关系"
+    },
+    {
+      "name": "概率统计",
+      "description": "概率计算、统计图表分析及数据处理"
+    }
+  ],
+  "questions": [
+    {
+      "id": 1,
+      "content": "函数 $f(x) = 2x + 3$ 的反函数是：",
+      "type": "choice",
+      "options": [
+        "A. $f^{-1}(x) = \\frac{x-3}{2}$",
+        "B. $f^{-1}(x) = \\frac{x+3}{2}$",
+        "C. $f^{-1}(x) = 2x - 3$",
+        "D. $f^{-1}(x) = \\frac{2x-3}{1}$"
+      ],
+      "correct_answer": "A",
+      "explanation": "设 $y = 2x + 3$，解得 $x = \\frac{y-3}{2}$，所以反函数为 $f^{-1}(x) = \\frac{x-3}{2}$",
+      "difficulty": "medium",
+      "knowledge_points": [
+        "函数与方程"
+      ]
+    },
+    {
+      "id": 2,
+      "content": "已知 $\\sin\\alpha = \\frac{3}{5}$，且 $\\alpha$ 为第二象限角，则 $\\cos\\alpha$ 的值为：",
+      "type": "choice",
+      "options": [
+        "A. $\\frac{4}{5}$",
+        "B. $-\\frac{4}{5}$",
+        "C. $\\frac{3}{4}$",
+        "D. $-\\frac{3}{4}$"
+      ],
+      "correct_answer": "B",
+      "explanation": "由 $\\sin^2\\alpha + \\cos^2\\alpha = 1$ 得 $\\cos^2\\alpha = 1 - \\frac{9}{25} = \\frac{16}{25}$，因为 $\\alpha$ 在第二象限，所以 $\\cos\\alpha = -\\frac{4}{5}$",
+      "difficulty": "medium",
+      "knowledge_points": [
+        "三角函数"
+      ]
+    },
+    {
+      "id": 3,
+      "content": "等差数列 $\\{a_n\\}$ 中，$a_1 = 2$，$d = 3$，则 $a_{10}$ 的值为：",
+      "type": "choice",
+      "options": [
+        "A. 29",
+        "B. 32",
+        "C. 35",
+        "D. 38"
+      ],
+      "correct_answer": "A",
+      "explanation": "等差数列通项公式：$a_n = a_1 + (n-1)d = 2 + (10-1) \\times 3 = 2 + 27 = 29$",
+      "difficulty": "easy",
+      "knowledge_points": [
+        "数列"
+      ]
+    },
+    {
+      "id": 4,
+      "content": "二次函数 $y = x^2 - 4x + 3$ 的对称轴方程是：",
+      "type": "choice",
+      "options": [
+        "A. $x = 2$",
+        "B. $x = -2$",
+        "C. $x = 4$",
+        "D. $x = -4$"
+      ],
+      "correct_answer": "A",
+      "explanation": "二次函数 $y = ax^2 + bx + c$ 的对称轴为 $x = -\\frac{b}{2a} = -\\frac{-4}{2 \\times 1} = 2$",
+      "difficulty": "easy",
+      "knowledge_points": [
+        "函数与方程"
+      ]
+    },
+    {
+      "id": 5,
+      "content": "正方体的棱长为 $a$，则其体积为：",
+      "type": "choice",
+      "options": [
+        "A. $a^2$",
+        "B. $a^3$",
+        "C. $6a^2$",
+        "D. $4a^3$"
+      ],
+      "correct_answer": "B",
+      "explanation": "正方体的体积公式为：$V = a^3$，其中 $a$ 为棱长",
+      "difficulty": "easy",
+      "knowledge_points": [
+        "立体几何"
+      ]
+    },
+    {
+      "id": 6,
+      "content": "从5个不同的球中任选2个，共有多少种选法？",
+      "type": "choice",
+      "options": [
+        "A. 10",
+        "B. 20",
+        "C. 25",
+        "D. 30"
+      ],
+      "correct_answer": "A",
+      "explanation": "组合数公式：$C_5^2 = \\frac{5!}{2!(5-2)!} = \\frac{5 \\times 4}{2 \\times 1} = 10$",
+      "difficulty": "medium",
+      "knowledge_points": [
+        "概率统计"
+      ]
+    },
+    {
+      "id": 7,
+      "content": "等比数列 $\\{a_n\\}$ 中，$a_1 = 3$，$q = 2$，则前5项的和 $S_5$ 为：",
+      "type": "choice",
+      "options": [
+        "A. 93",
+        "B. 96",
+        "C. 99",
+        "D. 102"
+      ],
+      "correct_answer": "A",
+      "explanation": "等比数列前n项和公式：$S_n = \\frac{a_1(1-q^n)}{1-q} = \\frac{3(1-2^5)}{1-2} = \\frac{3(1-32)}{-1} = 93$",
+      "difficulty": "medium",
+      "knowledge_points": [
+        "数列"
+      ]
+    },
+    {
+      "id": 8,
+      "content": "函数 $y = \\log_2 x$ 的定义域是：",
+      "type": "choice",
+      "options": [
+        "A. $(-\\infty, +\\infty)$",
+        "B. $(0, +\\infty)$",
+        "C. $[0, +\\infty)$",
+        "D. $(-\\infty, 0)$"
+      ],
+      "correct_answer": "B",
+      "explanation": "对数函数的真数必须大于0，所以定义域为 $(0, +\\infty)$",
+      "difficulty": "easy",
+      "knowledge_points": [
+        "函数与方程"
+      ]
+    },
+    {
+      "id": 9,
+      "content": "圆锥的底面半径为 $r$，高为 $h$，则其体积为：",
+      "type": "choice",
+      "options": [
+        "A. $\\pi r^2 h$",
+        "B. $\\frac{1}{3}\\pi r^2 h$",
+        "C. $\\frac{2}{3}\\pi r^2 h$",
+        "D. $2\\pi r^2 h$"
+      ],
+      "correct_answer": "B",
+      "explanation": "圆锥的体积公式为：$V = \\frac{1}{3}\\pi r^2 h$，其中 $r$ 为底面半径，$h$ 为高",
+      "difficulty": "easy",
+      "knowledge_points": [
+        "立体几何"
+      ]
+    },
+    {
+      "id": 10,
+      "content": "已知 $\\tan\\alpha = 2$，则 $\\frac{\\sin\\alpha + \\cos\\alpha}{\\sin\\alpha - \\cos\\alpha}$ 的值为：",
+      "type": "choice",
+      "options": [
+        "A. 3",
+        "B. $\\frac{1}{3}$",
+        "C. -3",
+        "D. $-\\frac{1}{3}$"
+      ],
+      "correct_answer": "A",
+      "explanation": "$\\frac{\\sin\\alpha + \\cos\\alpha}{\\sin\\alpha - \\cos\\alpha} = \\frac{\\tan\\alpha + 1}{\\tan\\alpha - 1} = \\frac{2 + 1}{2 - 1} = 3$",
+      "difficulty": "hard",
+      "knowledge_points": [
+        "三角函数"
+      ]
+    }
+  ]
+}

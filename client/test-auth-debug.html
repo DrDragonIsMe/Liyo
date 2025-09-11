@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>认证调试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .warning { background-color: #fff3cd; color: #856404; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .test-section {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>认证和API调试页面</h1>
+    
+    <div class="container">
+        <h2>1. 认证状态检查</h2>
+        <button onclick="checkAuthStatus()">检查认证状态</button>
+        <div id="authStatus"></div>
+    </div>
+
+    <div class="container">
+        <h2>2. 模拟登录</h2>
+        <button onclick="simulateLogin()">模拟登录</button>
+        <div id="loginStatus"></div>
+    </div>
+
+    <div class="container">
+        <h2>3. 测试用户补充内容API</h2>
+        <div class="test-section">
+            <h3>测试数据</h3>
+            <label>题目ID: <input type="text" id="questionId" value="507f1f77bcf86cd799439011" placeholder="输入题目ID"></label><br><br>
+            <label>选中文字: <input type="text" id="selectedText" value="这是测试选中的文字" placeholder="选中的文字"></label><br><br>
+            <label>补充内容: <textarea id="supplementContent" placeholder="输入补充内容">这是一个测试的补充内容，用于验证API功能是否正常工作。</textarea></label><br><br>
+            <label>类型: 
+                <select id="supplementType">
+                    <option value="knowledge_point">知识点</option>
+                    <option value="answer_supplement">答案补充</option>
+                </select>
+            </label><br><br>
+            <label>知识点名称: <input type="text" id="knowledgePointName" value="测试知识点" placeholder="知识点名称（仅知识点类型需要）"></label><br><br>
+        </div>
+        <button onclick="testUserSupplementAPI()">测试提交补充内容</button>
+        <div id="supplementResult"></div>
+    </div>
+
+    <div class="container">
+        <h2>4. 测试AI聊天API</h2>
+        <div class="test-section">
+            <label>消息内容: <textarea id="chatMessage" placeholder="输入要发送给AI的消息">请解释一下这道题的解题思路</textarea></label><br><br>
+            <label>题目ID: <input type="text" id="chatQuestionId" value="507f1f77bcf86cd799439011" placeholder="题目ID"></label><br><br>
+        </div>
+        <button onclick="testAIChatAPI()">测试AI聊天</button>
+        <div id="chatResult"></div>
+    </div>
+
+    <div class="container">
+        <h2>5. 清除认证数据</h2>
+        <button onclick="clearAuth()">清除认证数据</button>
+        <div id="clearResult"></div>
+    </div>
+
+    <script>
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const timestamp = new Date().toLocaleTimeString();
+            element.innerHTML += `<div class="status ${type}">[${timestamp}] ${message}</div>`;
+        }
+
+        function checkAuthStatus() {
+            const authStatus = document.getElementById('authStatus');
+            authStatus.innerHTML = '';
+            
+            try {
+                const authStorage = localStorage.getItem('auth-storage');
+                if (authStorage) {
+                    const authData = JSON.parse(authStorage);
+                    log('authStatus', '找到认证数据:', 'success');
+                    log('authStatus', `<pre>${JSON.stringify(authData, null, 2)}</pre>`, 'info');
+                    
+                    if (authData.token) {
+                        log('authStatus', '✓ Token存在', 'success');
+                    } else {
+                        log('authStatus', '✗ Token不存在', 'error');
+                    }
+                    
+                    if (authData.user) {
+                        log('authStatus', `✓ 用户信息: ${authData.user.name || authData.user.email}`, 'success');
+                    } else {
+                        log('authStatus', '✗ 用户信息不存在', 'error');
+                    }
+                } else {
+                    log('authStatus', '未找到认证数据', 'warning');
+                }
+            } catch (error) {
+                log('authStatus', `解析认证数据失败: ${error.message}`, 'error');
+            }
+        }
+
+        function simulateLogin() {
+            const loginStatus = document.getElementById('loginStatus');
+            loginStatus.innerHTML = '';
+            
+            const mockAuthData = {
+                user: {
+                    id: 'test-user-id',
+                    name: '测试用户',
+                    email: 'test@example.com',
+                    createdAt: new Date().toISOString()
+                },
+                token: 'mock-jwt-token-' + Date.now(),
+                isAuthenticated: true
+            };
+            
+            localStorage.setItem('auth-storage', JSON.stringify(mockAuthData));
+            log('loginStatus', '模拟登录成功', 'success');
+            log('loginStatus', `<pre>${JSON.stringify(mockAuthData, null, 2)}</pre>`, 'info');
+        }
+
+        async function testUserSupplementAPI() {
+            const resultDiv = document.getElementById('supplementResult');
+            resultDiv.innerHTML = '';
+            
+            try {
+                // 获取表单数据
+                const questionId = document.getElementById('questionId').value;
+                const selectedText = document.getElementById('selectedText').value;
+                const supplementContent = document.getElementById('supplementContent').value;
+                const supplementType = document.getElementById('supplementType').value;
+                const knowledgePointName = document.getElementById('knowledgePointName').value;
+                
+                if (!questionId || !selectedText || !supplementContent) {
+                    log('supplementResult', '请填写所有必填字段', 'error');
+                    return;
+                }
+                
+                // 获取认证token
+                const authStorage = localStorage.getItem('auth-storage');
+                const token = authStorage ? JSON.parse(authStorage).token : null;
+                
+                if (!token) {
+                    log('supplementResult', '未找到认证token，请先模拟登录', 'error');
+                    return;
+                }
+                
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                };
+                
+                const requestBody = {
+                    questionId,
+                    type: supplementType,
+                    selectedText,
+                    supplementContent,
+                    knowledgePointName: supplementType === 'knowledge_point' ? knowledgePointName : undefined,
+                    textPosition: {
+                        startIndex: 0,
+                        endIndex: selectedText.length,
+                        context: selectedText
+                    }
+                };
+                
+                log('supplementResult', '发送请求...', 'info');
+                log('supplementResult', `请求头: <pre>${JSON.stringify(headers, null, 2)}</pre>`, 'info');
+                log('supplementResult', `请求体: <pre>${JSON.stringify(requestBody, null, 2)}</pre>`, 'info');
+                
+                const response = await fetch('/api/user-supplements', {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(requestBody)
+                });
+                
+                const data = await response.json();
+                
+                log('supplementResult', `响应状态: ${response.status}`, response.ok ? 'success' : 'error');
+                log('supplementResult', `响应数据: <pre>${JSON.stringify(data, null, 2)}</pre>`, response.ok ? 'success' : 'error');
+                
+            } catch (error) {
+                log('supplementResult', `请求失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testAIChatAPI() {
+            const resultDiv = document.getElementById('chatResult');
+            resultDiv.innerHTML = '';
+            
+            try {
+                const message = document.getElementById('chatMessage').value;
+                const questionId = document.getElementById('chatQuestionId').value;
+                
+                if (!message || !questionId) {
+                    log('chatResult', '请填写消息内容和题目ID', 'error');
+                    return;
+                }
+                
+                // 获取认证token
+                const authStorage = localStorage.getItem('auth-storage');
+                const token = authStorage ? JSON.parse(authStorage).token : null;
+                
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+                
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+                
+                const requestBody = {
+                    message,
+                    questionId
+                };
+                
+                log('chatResult', '发送AI聊天请求...', 'info');
+                log('chatResult', `请求头: <pre>${JSON.stringify(headers, null, 2)}</pre>`, 'info');
+                log('chatResult', `请求体: <pre>${JSON.stringify(requestBody, null, 2)}</pre>`, 'info');
+                
+                const response = await fetch('/api/ai/chat', {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(requestBody)
+                });
+                
+                const data = await response.json();
+                
+                log('chatResult', `响应状态: ${response.status}`, response.ok ? 'success' : 'error');
+                log('chatResult', `响应数据: <pre>${JSON.stringify(data, null, 2)}</pre>`, response.ok ? 'success' : 'error');
+                
+            } catch (error) {
+                log('chatResult', `请求失败: ${error.message}`, 'error');
+            }
+        }
+
+        function clearAuth() {
+            localStorage.removeItem('auth-storage');
+            log('clearResult', '认证数据已清除', 'success');
+        }
+
+        // 页面加载时自动检查认证状态
+        window.onload = function() {
+            checkAuthStatus();
+        };
+    </script>
+</body>
+</html>

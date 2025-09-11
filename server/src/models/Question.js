@@ -4,16 +4,18 @@ const questionSchema = new mongoose.Schema({
   paper: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Paper',
-    required: true
+    required: false // 粘贴的题目可能不属于任何试卷
   },
   questionNumber: {
     type: Number,
-    required: true
+    required: function() {
+      return this.paper != null // 只有属于试卷的题目才需要题号
+    }
   },
   type: {
     type: String,
     required: [true, '请选择题目类型'],
-    enum: ['选择题', '填空题', '解答题', '判断题', '简答题', '计算题', '证明题', '作文题']
+    enum: ['选择题', '填空题', '解答题', '判断题', '简答题', '计算题', '证明题', '作文题', '图片题']
   },
   content: {
     type: String,
@@ -42,7 +44,7 @@ const questionSchema = new mongoose.Schema({
   correctAnswer: {
     type: mongoose.Schema.Types.Mixed, // 可以是字符串、数组或对象
     required: function() {
-      return this.type !== '作文题'
+      return this.type !== '作文题' && this.type !== '图片题'
     }
   },
   explanation: {
@@ -59,13 +61,16 @@ const questionSchema = new mongoose.Schema({
   }],
   difficulty: {
     type: String,
-    enum: ['简单', '中等', '困难'],
-    default: '中等'
+    enum: ['easy', 'medium', 'hard', '简单', '中等', '困难'],
+    default: 'medium'
   },
   score: {
     type: Number,
-    required: true,
-    min: 1
+    required: function() {
+      return this.paper != null // 只有属于试卷的题目才需要分值
+    },
+    min: 1,
+    default: 1
   },
   estimatedTime: {
     type: Number, // 预估答题时间（分钟）
@@ -78,8 +83,30 @@ const questionSchema = new mongoose.Schema({
   },
   grade: {
     type: String,
-    required: true,
+    required: false, // 图片题目可能不需要年级
     enum: ['高一', '高二', '高三']
+  },
+  // 图片相关字段
+  imageData: {
+    type: String, // base64编码的图片数据
+    required: false
+  },
+  mimeType: {
+    type: String, // 图片MIME类型
+    required: false
+  },
+  // SVG图形相关字段
+  svgData: {
+    type: String, // SVG图形数据
+    required: false
+  },
+  figureProperties: {
+    type: mongoose.Schema.Types.Mixed, // 图形属性（如边长、角度、面积等）
+    required: false
+  },
+  hasGeometryFigure: {
+    type: Boolean, // 是否包含几何图形
+    default: false
   },
   knowledgePoints: [{
     type: String,
@@ -99,7 +126,9 @@ const questionSchema = new mongoose.Schema({
   },
   source: {
     type: String,
-    trim: true
+    trim: true,
+    enum: ['user_paste', 'manual_input', 'ocr_extract', 'ai_generate', 'import', 'image_upload', 'other'],
+    default: 'manual_input'
   },
   year: {
     type: Number,
@@ -158,7 +187,7 @@ const questionSchema = new mongoose.Schema({
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: false // 粘贴的题目可能没有用户登录
   }
 }, {
   timestamps: true
@@ -177,6 +206,30 @@ questionSchema.index({ isActive: 1 })
 questionSchema.virtual('accuracy').get(function() {
   if (this.statistics.totalAttempts === 0) return 0
   return Math.round((this.statistics.correctAttempts / this.statistics.totalAttempts) * 100)
+})
+
+// 虚拟字段：用户补充内容
+questionSchema.virtual('userSupplements', {
+  ref: 'UserSupplement',
+  localField: '_id',
+  foreignField: 'questionId',
+  match: { isActive: true }
+})
+
+// 虚拟字段：知识点补充
+questionSchema.virtual('knowledgeSupplements', {
+  ref: 'UserSupplement',
+  localField: '_id',
+  foreignField: 'questionId',
+  match: { type: 'knowledge_point', isActive: true }
+})
+
+// 虚拟字段：答案补充
+questionSchema.virtual('answerSupplements', {
+  ref: 'UserSupplement',
+  localField: '_id',
+  foreignField: 'questionId',
+  match: { type: 'answer_supplement', isActive: true }
 })
 
 // 更新题目统计信息
@@ -225,7 +278,13 @@ questionSchema.methods.getSummary = function() {
     score: this.score,
     estimatedTime: this.estimatedTime,
     accuracy: this.accuracy,
-    knowledgePoints: this.knowledgePoints
+    knowledgePoints: this.knowledgePoints,
+    imageData: this.imageData,
+    mimeType: this.mimeType,
+    svgData: this.svgData,
+    figureProperties: this.figureProperties,
+    hasGeometryFigure: this.hasGeometryFigure,
+    ocrText: this.ocrText
   }
 }
 

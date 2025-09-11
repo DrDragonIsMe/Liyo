@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LaTeX渲染问题诊断</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+        .test-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #007acc;
+            padding-bottom: 5px;
+        }
+        .formula-test {
+            margin: 15px 0;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            background: white;
+        }
+        .formula-original {
+            background: #fff3cd;
+            padding: 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            margin-bottom: 10px;
+            border-left: 4px solid #ffc107;
+        }
+        .formula-cleaned {
+            background: #d1ecf1;
+            padding: 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            margin-bottom: 10px;
+            border-left: 4px solid #17a2b8;
+        }
+        .formula-rendered {
+            background: #d4edda;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            border-left: 4px solid #28a745;
+            min-height: 40px;
+        }
+        .formula-error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            border-left: 4px solid #dc3545;
+        }
+        .success { color: #28a745; font-weight: bold; }
+        .error { color: #dc3545; font-weight: bold; }
+        .warning { color: #ffc107; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>🔍 LaTeX公式渲染问题诊断</h1>
+    <p>模拟MarkdownRenderer组件的处理过程，找出哪些公式渲染失败导致显示原始语法。</p>
+    
+    <div class="test-section">
+        <div class="test-title">配方法知识点中的数学公式测试</div>
+        <div id="formula-tests"></div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">问题总结</div>
+        <div id="summary"></div>
+    </div>
+
+    <script>
+        // 模拟MarkdownRenderer的cleanMathContent函数
+        function cleanMathContent(mathContent) {
+            return mathContent
+                // 移除中文标点符号
+                .replace(/[，。；：？！（）【】「」『』]/g, '')
+                // 移除中文字符
+                .replace(/[\u4e00-\u9fff]/g, '')
+                // 清理多余空格
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+        
+        // 模拟MarkdownRenderer的preprocessLatex函数
+        function preprocessLatex(text) {
+            return text
+                // 清理中文标点符号
+                .replace(/，/g, ',')
+                .replace(/。/g, '.')
+                .replace(/；/g, ';')
+                .replace(/：/g, ':')
+                .replace(/？/g, '?')
+                .replace(/！/g, '!')
+                .replace(/（/g, '(')
+                .replace(/）/g, ')')
+                .replace(/【/g, '[')
+                .replace(/】/g, ']')
+                .replace(/「/g, '"')
+                .replace(/」/g, '"')
+                .replace(/『/g, '"')
+                .replace(/』/g, '"')
+                // 处理双反斜杠转义问题
+                .replace(/\\\\frac/g, '\\frac')
+                .replace(/\\\\sqrt/g, '\\sqrt')
+                .replace(/\\\\pm/g, '\\pm')
+                .replace(/\\\\times/g, '\\times')
+                .replace(/\\\\div/g, '\\div')
+                .replace(/\\\\cdot/g, '\\cdot')
+                .replace(/\\\\sum/g, '\\sum')
+                .replace(/\\\\int/g, '\\int')
+                .replace(/\\\\lim/g, '\\lim')
+                .replace(/\\\\sin/g, '\\sin')
+                .replace(/\\\\cos/g, '\\cos')
+                .replace(/\\\\tan/g, '\\tan')
+                .replace(/\\\\log/g, '\\log')
+                .replace(/\\\\ln/g, '\\ln')
+                .replace(/\\\\alpha/g, '\\alpha')
+                .replace(/\\\\beta/g, '\\beta')
+                .replace(/\\\\gamma/g, '\\gamma')
+                .replace(/\\\\delta/g, '\\delta')
+                .replace(/\\\\pi/g, '\\pi')
+                .replace(/\\\\theta/g, '\\theta')
+                .replace(/\\\\infty/g, '\\infty')
+                .replace(/\\\\leq/g, '\\leq')
+                .replace(/\\\\geq/g, '\\geq')
+                .replace(/\\\\neq/g, '\\neq')
+                .replace(/\\\\approx/g, '\\approx')
+                .replace(/\\\\equiv/g, '\\equiv')
+                .replace(/\\\\begin/g, '\\begin')
+                .replace(/\\\\end/g, '\\end')
+                .replace(/\\\\left/g, '\\left')
+                .replace(/\\\\right/g, '\\right')
+                // 处理常见的Unicode数学符号
+                .replace(/×/g, '\\times')
+                .replace(/÷/g, '\\div')
+                .replace(/±/g, '\\pm')
+                .replace(/≤/g, '\\leq')
+                .replace(/≥/g, '\\geq')
+                .replace(/≠/g, '\\neq')
+                .replace(/≈/g, '\\approx')
+                .replace(/∞/g, '\\infty')
+                .replace(/π/g, '\\pi')
+                .replace(/α/g, '\\alpha')
+                .replace(/β/g, '\\beta')
+                .replace(/γ/g, '\\gamma')
+                .replace(/δ/g, '\\delta')
+                .replace(/θ/g, '\\theta')
+                // 处理上下标的Unicode字符
+                .replace(/²/g, '^2')
+                .replace(/³/g, '^3')
+                .replace(/¹/g, '^1')
+                .replace(/₁/g, '_1')
+                .replace(/₂/g, '_2')
+                .replace(/₃/g, '_3');
+        }
+        
+        function testFormula(originalFormula, type) {
+            const testDiv = document.createElement('div');
+            testDiv.className = 'formula-test';
+            
+            // 显示原始公式
+            const originalDiv = document.createElement('div');
+            originalDiv.className = 'formula-original';
+            originalDiv.innerHTML = `<strong>原始:</strong> ${type === 'block' ? '$$' : '$'}${originalFormula}${type === 'block' ? '$$' : '$'}`;
+            testDiv.appendChild(originalDiv);
+            
+            // 清理后的公式
+            const cleanedFormula = cleanMathContent(originalFormula);
+            const cleanedDiv = document.createElement('div');
+            cleanedDiv.className = 'formula-cleaned';
+            cleanedDiv.innerHTML = `<strong>清理后:</strong> ${cleanedFormula}`;
+            testDiv.appendChild(cleanedDiv);
+            
+            // 渲染结果
+            const renderedDiv = document.createElement('div');
+            renderedDiv.className = 'formula-rendered';
+            
+            try {
+                if (type === 'block') {
+                    katex.render(cleanedFormula, renderedDiv, {
+                        displayMode: true,
+                        throwOnError: true
+                    });
+                } else {
+                    katex.render(cleanedFormula, renderedDiv, {
+                        displayMode: false,
+                        throwOnError: true
+                    });
+                }
+                
+                const statusDiv = document.createElement('div');
+                statusDiv.innerHTML = '<span class="success">✅ 渲染成功</span>';
+                testDiv.appendChild(statusDiv);
+                
+                return { success: true, formula: originalFormula, cleaned: cleanedFormula };
+                
+            } catch (error) {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'formula-error';
+                errorDiv.innerHTML = `<strong>❌ 渲染失败:</strong> ${error.message}`;
+                testDiv.appendChild(errorDiv);
+                
+                // 显示原始文本（模拟MarkdownRenderer的fallback行为）
+                const fallbackDiv = document.createElement('div');
+                fallbackDiv.innerHTML = `<strong>Fallback显示:</strong> <span style="background: #f8d7da; padding: 4px; border-radius: 4px;">${type === 'block' ? '$$' : '$'}${originalFormula}${type === 'block' ? '$$' : '$'}</span>`;
+                testDiv.appendChild(fallbackDiv);
+                
+                return { success: false, formula: originalFormula, cleaned: cleanedFormula, error: error.message };
+            } finally {
+                testDiv.appendChild(renderedDiv);
+                document.getElementById('formula-tests').appendChild(testDiv);
+            }
+        }
+        
+        function runDiagnosis() {
+            const content = `配方法是解一元二次方程的一种重要方法。对于一般形式的一元二次方程 $ax^2 + bx + c = 0$ (其中 $a \\neq 0$)，我们可以通过配方将其转化为 $(x + m)^2 = n$ 的形式。\n\n具体步骤如下：\n\n1. **移项**：将常数项移到等号右边\n   $ax^2 + bx = -c$\n\n2. **系数化1**：将二次项系数化为1\n   $x^2 + \\frac{b}{a}x = -\\frac{c}{a}$\n\n3. **配方**：在等式两边同时加上一次项系数一半的平方\n   $x^2 + \\frac{b}{a}x + \\left(\\frac{b}{2a}\\right)^2 = -\\frac{c}{a} + \\left(\\frac{b}{2a}\\right)^2$\n\n4. **化简**：左边配成完全平方式\n   $$\\left(x + \\frac{b}{2a}\\right)^2 = \\frac{b^2 - 4ac}{4a^2}$$\n\n5. **开方求解**：\n   - 当判别式 $\\Delta = b^2 - 4ac > 0$ 时，方程有两个不相等的实数根\n   - 当判别式 $\\Delta = b^2 - 4ac = 0$ 时，方程有两个相等的实数根\n   - 当判别式 $\\Delta = b^2 - 4ac < 0$ 时，方程无实数根\n\n**示例**：解方程 $x^2 + 4x + 1 = 0$\n\n解：$x^2 + 4x = -1$\n\n配方：$x^2 + 4x + 4 = -1 + 4$\n\n即：$(x + 2)^2 = 3$\n\n开方：$x + 2 = \\pm\\sqrt{3}$\n\n所以：$x = -2 \\pm \\sqrt{3}$`;
+            
+            const processedText = preprocessLatex(content);
+            
+            // 提取所有数学公式
+            const blockMatches = [];
+            const inlineMatches = [];
+            
+            // 匹配块级公式 $$...$$
+            const blockMathRegex = /\$\$([^$]+)\$\$/g;
+            let blockMatch;
+            while ((blockMatch = blockMathRegex.exec(processedText)) !== null) {
+                blockMatches.push(blockMatch[1].trim());
+            }
+            
+            // 匹配行内公式 $...$
+            const inlineMathRegex = /\$([^$]+)\$/g;
+            let inlineMatch;
+            while ((inlineMatch = inlineMathRegex.exec(processedText)) !== null) {
+                // 检查是否与块级公式重叠
+                const isBlockFormula = blockMatches.some(block => block.includes(inlineMatch[1].trim()));
+                if (!isBlockFormula) {
+                    inlineMatches.push(inlineMatch[1].trim());
+                }
+            }
+            
+            console.log('块级公式:', blockMatches);
+            console.log('行内公式:', inlineMatches);
+            
+            const results = {
+                total: blockMatches.length + inlineMatches.length,
+                success: 0,
+                failed: 0,
+                failedFormulas: []
+            };
+            
+            // 测试块级公式
+            blockMatches.forEach(formula => {
+                const result = testFormula(formula, 'block');
+                if (result.success) {
+                    results.success++;
+                } else {
+                    results.failed++;
+                    results.failedFormulas.push({ type: 'block', ...result });
+                }
+            });
+            
+            // 测试行内公式
+            inlineMatches.forEach(formula => {
+                const result = testFormula(formula, 'inline');
+                if (result.success) {
+                    results.success++;
+                } else {
+                    results.failed++;
+                    results.failedFormulas.push({ type: 'inline', ...result });
+                }
+            });
+            
+            // 显示总结
+            const summaryDiv = document.getElementById('summary');
+            let summaryHTML = `
+                <h3>诊断结果</h3>
+                <ul>
+                    <li><strong>总公式数:</strong> ${results.total}</li>
+                    <li><strong>成功渲染:</strong> <span class="success">${results.success}</span></li>
+                    <li><strong>渲染失败:</strong> <span class="error">${results.failed}</span></li>
+                </ul>
+            `;
+            
+            if (results.failed > 0) {
+                summaryHTML += `
+                    <h4>失败的公式:</h4>
+                    <ul>
+                `;
+                results.failedFormulas.forEach((failed, index) => {
+                    summaryHTML += `
+                        <li>
+                            <strong>${failed.type === 'block' ? '块级' : '行内'}公式 ${index + 1}:</strong><br>
+                            <code>${failed.formula}</code><br>
+                            <span class="error">错误: ${failed.error}</span>
+                        </li>
+                    `;
+                });
+                summaryHTML += `</ul>`;
+                
+                summaryHTML += `
+                    <div style="background: #fff3cd; padding: 15px; border-radius: 6px; margin-top: 20px; border-left: 4px solid #ffc107;">
+                        <h4>🔍 问题分析</h4>
+                        <p>这些失败的公式会在MarkdownRenderer组件中触发catch块，导致显示原始的LaTeX语法而不是渲染后的数学公式。</p>
+                        <p><strong>这就是用户反馈的"有些是公式，有些还是原来的语法"问题的根本原因！</strong></p>
+                    </div>
+                `;
+            } else {
+                summaryHTML += `
+                    <div style="background: #d4edda; padding: 15px; border-radius: 6px; margin-top: 20px; border-left: 4px solid #28a745;">
+                        <h4>✅ 所有公式渲染正常</h4>
+                        <p>如果在实际应用中仍有问题，可能是其他知识点的公式存在问题。</p>
+                    </div>
+                `;
+            }
+            
+            summaryDiv.innerHTML = summaryHTML;
+        }
+        
+        // 页面加载完成后开始诊断
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(runDiagnosis, 100);
+        });
+    </script>
+</body>
+</html>

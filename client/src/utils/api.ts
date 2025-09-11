@@ -24,9 +24,25 @@ class ApiClient {
     };
 
     // Add auth token if available
-    const token = localStorage.getItem('token') || 'demo-token';
+    let token = null;
+    try {
+      const authStorage = localStorage.getItem('auth-storage');
+      if (authStorage) {
+        const authData = JSON.parse(authStorage);
+        if (authData.token && authData.isAuthenticated) {
+          token = authData.token;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to parse auth storage:', error);
+      // 清除损坏的存储数据
+      localStorage.removeItem('auth-storage');
+    }
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      console.warn('No valid token found, API request may fail');
     }
 
     try {
@@ -142,13 +158,74 @@ class ApiClient {
     return await response.json();
   }
 
+  async uploadImage(formData: FormData) {
+    const url = `${this.baseURL}/questions/parse-image`;
+    const headers: Record<string, string> = {};
+    
+    // Add auth token if available
+    let token = null;
+    try {
+      const authStorage = localStorage.getItem('auth-storage');
+      if (authStorage) {
+        const authData = JSON.parse(authStorage);
+        if (authData.token && authData.isAuthenticated) {
+          token = authData.token;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to parse auth storage:', error);
+    }
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    } else {
+      console.warn('No auth token found for image upload');
+    }
+    
+    console.log('Uploading image to:', url);
+    console.log('FormData entries:');
+    for (let [key, value] of formData.entries()) {
+      console.log(key, value);
+    }
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        body: formData,
+        headers,
+      });
+      
+      console.log('Upload response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Upload error response:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+      
+      const result = await response.json();
+      console.log('Upload success:', result);
+      return result;
+    } catch (error) {
+      console.error('Upload request failed:', error);
+      throw error;
+    }
+  }
+
   // 预览试卷
   async previewPaper(paperId: string): Promise<Blob> {
     const url = `${this.baseURL}/papers/${paperId}/preview`;
-    let token = localStorage.getItem('token');
-    // 如果token无效或不存在，使用demo-token
-    if (!token || token === 'null' || token === 'undefined') {
-      token = 'demo-token';
+    let token = null;
+    try {
+      const authStorage = localStorage.getItem('auth-storage');
+      if (authStorage) {
+        const authData = JSON.parse(authStorage);
+        if (authData.token && authData.isAuthenticated) {
+          token = authData.token;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to parse auth storage:', error);
     }
     const headers: Record<string, string> = {};
     if (token) {
@@ -171,12 +248,9 @@ class ApiClient {
   async downloadPaper(paperId: string): Promise<Blob> {
     const url = `${this.baseURL}/papers/${paperId}/download`;
     let token = localStorage.getItem('token');
-    // 如果token无效或不存在，使用demo-token
-    if (!token || token === 'null' || token === 'undefined') {
-      token = 'demo-token';
-    }
+    
     const headers: Record<string, string> = {};
-    if (token) {
+    if (token && token !== 'null' && token !== 'undefined') {
       headers.Authorization = `Bearer ${token}`;
     }
     

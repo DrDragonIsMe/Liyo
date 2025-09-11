@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LaTeX公式渲染测试</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .original {
+            background-color: #f0f0f0;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 3px;
+        }
+        .rendered {
+            background-color: #e8f5e8;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 3px;
+        }
+        .error {
+            background-color: #ffe8e8;
+            color: #d00;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>LaTeX公式渲染测试</h1>
+    
+    <div class="test-section">
+        <div class="test-title">1. 基本行内公式测试</div>
+        <div class="original">原始文本：求解方程 $x^2 + 2x - 3 = 0$</div>
+        <div class="rendered" id="test1">求解方程 $x^2 + 2x - 3 = 0$</div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">2. 块级公式测试</div>
+        <div class="original">原始文本：$$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$</div>
+        <div class="rendered" id="test2">$$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$</div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">3. 积分公式测试</div>
+        <div class="original">原始文本：$$\\int (2x^3 + 3x^2 - x + 1) dx = \\frac{1}{2}x^4 + x^3 - \\frac{1}{2}x^2 + x + C$$</div>
+        <div class="rendered" id="test3">$$\\int (2x^3 + 3x^2 - x + 1) dx = \\frac{1}{2}x^4 + x^3 - \\frac{1}{2}x^2 + x + C$$</div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">4. 混合内容测试</div>
+        <div class="original">原始文本：对于方程 $ax^2 + bx + c = 0$，当判别式 $\\Delta = b^2 - 4ac > 0$ 时，方程有两个不同的实根：$$x_{1,2} = \\frac{-b \\pm \\sqrt{\\Delta}}{2a}$$</div>
+        <div class="rendered" id="test4">对于方程 $ax^2 + bx + c = 0$，当判别式 $\\Delta = b^2 - 4ac > 0$ 时，方程有两个不同的实根：$$x_{1,2} = \\frac{-b \\pm \\sqrt{\\Delta}}{2a}$$</div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">5. Unicode符号转换测试</div>
+        <div class="original">原始文本（含Unicode）：∫(2x³ + 3x² - x + 1)dx = ½x⁴ + x³ - ½x² + x + C</div>
+        <div class="rendered" id="test5">∫(2x³ + 3x² - x + 1)dx = ½x⁴ + x³ - ½x² + x + C</div>
+        <div class="rendered" id="test5-converted"></div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">6. 实际API响应测试</div>
+        <div class="original">API响应内容：</div>
+        <div class="rendered" id="api-test"></div>
+        <button onclick="testAPI()">测试API响应</button>
+    </div>
+    
+    <script>
+        // 预处理函数（模拟MathRenderer组件的逻辑）
+        function preprocessLatex(text) {
+            return text
+                // 处理双反斜杠转义问题
+                .replace(/\\\\frac/g, '\\frac')
+                .replace(/\\\\sqrt/g, '\\sqrt')
+                .replace(/\\\\pm/g, '\\pm')
+                .replace(/\\\\int/g, '\\int')
+                .replace(/\\\\Delta/g, '\\Delta')
+                // 处理常见的Unicode数学符号
+                .replace(/∫/g, '\\int')
+                .replace(/²/g, '^2')
+                .replace(/³/g, '^3')
+                .replace(/⁴/g, '^4')
+                .replace(/½/g, '\\frac{1}{2}')
+                .replace(/×/g, '\\times')
+                .replace(/÷/g, '\\div')
+                .replace(/±/g, '\\pm')
+                .replace(/π/g, '\\pi');
+        }
+        
+        // 渲染LaTeX公式
+        function renderMath() {
+            // 处理Unicode转换测试
+            const test5Element = document.getElementById('test5-converted');
+            const unicodeText = '∫(2x³ + 3x² - x + 1)dx = ½x⁴ + x³ - ½x² + x + C';
+            const convertedText = '$' + preprocessLatex(unicodeText) + '$';
+            test5Element.innerHTML = '转换后：' + convertedText;
+            
+            // 渲染所有数学公式
+            renderMathInElement(document.body, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false}
+                ],
+                throwOnError: false,
+                errorCallback: function(msg, err) {
+                    console.error('KaTeX渲染错误:', msg, err);
+                }
+            });
+        }
+        
+        // 测试API响应
+        async function testAPI() {
+            try {
+                const response = await fetch('http://localhost:5001/api/ai/solutions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        question: '求解方程 x² + 2x - 3 = 0',
+                        subject: '数学',
+                        difficulty: 'medium'
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success && data.solutions.length > 0) {
+                    const solution = data.solutions[0];
+                    let content = `<strong>${solution.title}</strong><br>`;
+                    content += `<em>${solution.approach}</em><br><br>`;
+                    content += '<strong>步骤：</strong><br>';
+                    solution.steps.forEach((step, index) => {
+                        const processedStep = preprocessLatex(step);
+                        content += `${index + 1}. ${processedStep}<br>`;
+                    });
+                    
+                    document.getElementById('api-test').innerHTML = content;
+                    
+                    // 重新渲染数学公式
+                    renderMathInElement(document.getElementById('api-test'), {
+                        delimiters: [
+                            {left: '$$', right: '$$', display: true},
+                            {left: '$', right: '$', display: false}
+                        ],
+                        throwOnError: false
+                    });
+                } else {
+                    document.getElementById('api-test').innerHTML = '<div class="error">API调用失败或无响应数据</div>';
+                }
+            } catch (error) {
+                document.getElementById('api-test').innerHTML = `<div class="error">错误: ${error.message}</div>`;
+            }
+        }
+        
+        // 页面加载完成后渲染数学公式
+        document.addEventListener('DOMContentLoaded', function() {
+            renderMath();
+        });
+    </script>
+</body>
+</html>

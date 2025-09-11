@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全面数学公式渲染测试</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            background: #f8fafc;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            margin: 0 0 10px 0;
+            font-size: 2.5em;
+            font-weight: 700;
+        }
+        .header p {
+            margin: 0;
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        .test-section {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+        }
+        .test-title {
+            font-size: 1.4em;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #4299e1;
+            display: flex;
+            align-items: center;
+        }
+        .test-title .icon {
+            margin-right: 10px;
+            font-size: 1.2em;
+        }
+        .test-item {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #f7fafc;
+        }
+        .test-label {
+            font-weight: 600;
+            color: #4a5568;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .test-content {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #cbd5e0;
+            margin-bottom: 10px;
+            min-height: 40px;
+        }
+        .raw-text {
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            color: #718096;
+            background: #edf2f7;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border-left: 4px solid #a0aec0;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .input-section {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .input-group {
+            margin: 15px 0;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+        .input-group input, .input-group textarea, .input-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        .input-group input:focus, .input-group textarea:focus, .input-group select:focus {
+            outline: none;
+            border-color: #4299e1;
+            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+        }
+        .input-group textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            background: #4299e1;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        button:hover {
+            background: #3182ce;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        button:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        button.secondary {
+            background: #718096;
+        }
+        button.secondary:hover {
+            background: #4a5568;
+        }
+        button.success {
+            background: #48bb78;
+        }
+        button.success:hover {
+            background: #38a169;
+        }
+        .status {
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin: 15px 0;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .loading { background: #bee3f8; color: #2b6cb0; }
+        .success { background: #c6f6d5; color: #276749; }
+        .error { background: #fed7d7; color: #c53030; }
+        .warning { background: #faf089; color: #744210; }
+        .chat-container {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 20px 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .message {
+            margin: 15px 0;
+            padding: 15px 20px;
+            border-radius: 12px;
+            max-width: 85%;
+            word-wrap: break-word;
+        }
+        .user-message {
+            background: linear-gradient(135deg, #4299e1, #3182ce);
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+        .ai-message {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            margin-right: auto;
+        }
+        .system-message {
+            background: #fef5e7;
+            border: 1px solid #f6e05e;
+            color: #744210;
+            text-align: center;
+            margin: 10px auto;
+            max-width: 70%;
+        }
+        .results-container {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 20px 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+        }
+        .solution-item {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+        .solution-title {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+        .solution-content {
+            line-height: 1.6;
+        }
+        .knowledge-point-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .knowledge-point-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #4299e1;
+        }
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #4299e1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .math-error {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            display: inline-block;
+            margin: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🧮 全面数学公式渲染测试</h1>
+        <p>测试AI助手、知识点详情和实时答题方案中的数学公式渲染功能</p>
+    </div>
+    
+    <div class="test-grid">
+        <!-- AI聊天测试 -->
+        <div class="test-section">
+            <div class="test-title">
+                <span class="icon">💬</span>
+                AI聊天数学公式测试
+            </div>
+            
+            <div class="input-group">
+                <label for="chatMessage">聊天消息:</label>
+                <input type="text" id="chatMessage" placeholder="输入包含数学的问题..." value="请解释二次函数的配方法，包括具体步骤和公式">
+            </div>
+            
+            <div class="button-group">
+                <button onclick="testAIChat()" id="aiChatBtn">
+                    <span class="spinner" id="aiChatSpinner" style="display: none;"></span>
+                    发送AI聊天
+                </button>
+                <button onclick="clearAIChat()" class="secondary">清空聊天</button>
+            </div>
+            
+            <div id="aiChatStatus" class="status" style="display: none;"></div>
+            
+            <div class="chat-container" id="aiChatContainer">
+                <div class="message system-message">
+                    AI助手准备就绪，有问题随时问我！
+                </div>
+            </div>
+        </div>
+        
+        <!-- 知识点详情测试 -->
+        <div class="test-section">
+            <div class="test-title">
+                <span class="icon">📚</span>
+                知识点详情数学公式测试
+            </div>
+            
+            <div class="input-group">
+                <label for="knowledgePointName">知识点名称:</label>
+                <input type="text" id="knowledgePointName" placeholder="输入知识点名称..." value="配方法">
+            </div>
+            
+            <div class="input-group">
+                <label for="knowledgeSubject">学科:</label>
+                <select id="knowledgeSubject">
+                    <option value="数学">数学</option>
+                    <option value="物理">物理</option>
+                    <option value="化学">化学</option>
+                </select>
+            </div>
+            
+            <div class="button-group">
+                <button onclick="testKnowledgePoint()" id="knowledgeBtn">
+                    <span class="spinner" id="knowledgeSpinner" style="display: none;"></span>
+                    获取知识点详情
+                </button>
+                <button onclick="clearKnowledgePoint()" class="secondary">清空结果</button>
+            </div>
+            
+            <div id="knowledgeStatus" class="status" style="display: none;"></div>
+            
+            <div id="knowledgeResults" class="results-container" style="display: none;"></div>
+        </div>
+        
+        <!-- 实时答题方案测试 -->
+        <div class="test-section">
+            <div class="test-title">
+                <span class="icon">💡</span>
+                实时答题方案数学公式测试
+            </div>
+            
+            <div class="input-group">
+                <label for="questionContent">题目内容:</label>
+                <textarea id="questionContent" placeholder="输入题目内容...">求解方程 x² + 4x - 5 = 0，并用配方法详细说明解题过程</textarea>
+            </div>
+            
+            <div class="input-group">
+                <label for="questionSubject">学科:</label>
+                <select id="questionSubject">
+                    <option value="数学">数学</option>
+                    <option value="物理">物理</option>
+                    <option value="化学">化学</option>
+                </select>
+            </div>
+            
+            <div class="input-group">
+                <label for="questionDifficulty">难度:</label>
+                <select id="questionDifficulty">
+                    <option value="easy">简单</option>
+                    <option value="medium">中等</option>
+                    <option value="hard">困难</option>
+                </select>
+            </div>
+            
+            <div class="button-group">
+                <button onclick="testRealTimeSolutions()" id="solutionsBtn">
+                    <span class="spinner" id="solutionsSpinner" style="display: none;"></span>
+                    生成答题方案
+                </button>
+                <button onclick="clearSolutions()" class="secondary">清空结果</button>
+            </div>
+            
+            <div id="solutionsStatus" class="status" style="display: none;"></div>
+            
+            <div id="solutionsResults" class="results-container" style="display: none;"></div>
+        </div>
+        
+        <!-- 公式渲染测试 -->
+        <div class="test-section">
+            <div class="test-title">
+                <span class="icon">🔬</span>
+                公式渲染能力测试
+            </div>
+            
+            <div class="test-item">
+                <div class="test-label">包含中文的LaTeX公式:</div>
+                <div class="test-content" id="chinese-latex">
+                    配方法将 $ax^2 + bx + c = 0$ 转化为 $(x + \frac{b}{2a})^2 = \frac{b^2 - 4ac}{4a^2}$ 的形式。
+                </div>
+                <div class="raw-text">配方法将 $ax^2 + bx + c = 0$ 转化为 $(x + \frac{b}{2a})^2 = \frac{b^2 - 4ac}{4a^2}$ 的形式。</div>
+            </div>
+            
+            <div class="test-item">
+                <div class="test-label">复杂块级公式:</div>
+                <div class="test-content" id="complex-block">
+                    $$\begin{align}
+                    x^2 + 4x - 5 &= 0 \\
+                    x^2 + 4x &= 5 \\
+                    x^2 + 4x + 4 &= 5 + 4 \\
+                    (x + 2)^2 &= 9 \\
+                    x + 2 &= \pm 3 \\
+                    x &= -2 \pm 3
+                    \end{align}$$
+                </div>
+                <div class="raw-text">$$\begin{align}
+x^2 + 4x - 5 &= 0 \\
+x^2 + 4x &= 5 \\
+x^2 + 4x + 4 &= 5 + 4 \\
+(x + 2)^2 &= 9 \\
+x + 2 &= \pm 3 \\
+x &= -2 \pm 3
+\end{align}$$</div>
+            </div>
+            
+            <div class="test-item">
+                <div class="test-label">混合中英文数学表达式:</div>
+                <div class="test-content" id="mixed-content">
+                    当判别式 $\Delta = b^2 - 4ac > 0$ 时，方程有两个不相等的实根：$x_1 = \frac{-b + \sqrt{\Delta}}{2a}$，$x_2 = \frac{-b - \sqrt{\Delta}}{2a}$。
+                </div>
+                <div class="raw-text">当判别式 $\Delta = b^2 - 4ac > 0$ 时，方程有两个不相等的实根：$x_1 = \frac{-b + \sqrt{\Delta}}{2a}$，$x_2 = \frac{-b - \sqrt{\Delta}}{2a}$。</div>
+            </div>
+            
+            <div class="button-group">
+                <button onclick="renderTestFormulas()" class="success">
+                    重新渲染测试公式
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 模拟MarkdownRenderer的预处理函数
+        function preprocessLatex(text) {
+            return text
+                // 清理中文标点符号
+                .replace(/，/g, ',')
+                .replace(/。/g, '.')
+                .replace(/；/g, ';')
+                .replace(/：/g, ':')
+                .replace(/？/g, '?')
+                .replace(/！/g, '!')
+                .replace(/（/g, '(')
+                .replace(/）/g, ')')
+                .replace(/【/g, '[')
+                .replace(/】/g, ']')
+                .replace(/「/g, '"')
+                .replace(/」/g, '"')
+                .replace(/『/g, '"')
+                .replace(/』/g, '"')
+                // 处理双反斜杠转义问题
+                .replace(/\\\\frac/g, '\\frac')
+                .replace(/\\\\sqrt/g, '\\sqrt')
+                .replace(/\\\\pm/g, '\\pm')
+                .replace(/\\\\times/g, '\\times')
+                .replace(/\\\\div/g, '\\div')
+                .replace(/\\\\cdot/g, '\\cdot')
+                .replace(/\\\\sum/g, '\\sum')
+                .replace(/\\\\int/g, '\\int')
+                .replace(/\\\\lim/g, '\\lim')
+                .replace(/\\\\sin/g, '\\sin')
+                .replace(/\\\\cos/g, '\\cos')
+                .replace(/\\\\tan/g, '\\tan')
+                .replace(/\\\\log/g, '\\log')
+                .replace(/\\\\ln/g, '\\ln')
+                .replace(/\\\\alpha/g, '\\alpha')
+                .replace(/\\\\beta/g, '\\beta')
+                .replace(/\\\\gamma/g, '\\gamma')
+                .replace(/\\\\delta/g, '\\delta')
+                .replace(/\\\\pi/g, '\\pi')
+                .replace(/\\\\theta/g, '\\theta')
+                .replace(/\\\\infty/g, '\\infty')
+                .replace(/\\\\leq/g, '\\leq')
+                .replace(/\\\\geq/g, '\\geq')
+                .replace(/\\\\neq/g, '\\neq')
+                .replace(/\\\\approx/g, '\\approx')
+                .replace(/\\\\equiv/g, '\\equiv')
+                .replace(/\\\\begin/g, '\\begin')
+                .replace(/\\\\end/g, '\\end')
+                .replace(/\\\\left/g, '\\left')
+                .replace(/\\\\right/g, '\\right')
+                // 处理常见的Unicode数学符号
+                .replace(/×/g, '\\times')
+                .replace(/÷/g, '\\div')
+                .replace(/±/g, '\\pm')
+                .replace(/≤/g, '\\leq')
+                .replace(/≥/g, '\\geq')
+                .replace(/≠/g, '\\neq')
+                .replace(/≈/g, '\\approx')
+                .replace(/∞/g, '\\infty')
+                .replace(/π/g, '\\pi')
+                .replace(/α/g, '\\alpha')
+                .replace(/β/g, '\\beta')
+                .replace(/γ/g, '\\gamma')
+                .replace(/δ/g, '\\delta')
+                .replace(/θ/g, '\\theta')
+                // 处理上下标的Unicode字符
+                .replace(/²/g, '^2')
+                .replace(/³/g, '^3')
+                .replace(/¹/g, '^1')
+                .replace(/₁/g, '_1')
+                .replace(/₂/g, '_2')
+                .replace(/₃/g, '_3');
+        }
+        
+        function showStatus(elementId, type, message) {
+            const statusEl = document.getElementById(elementId);
+            statusEl.style.display = 'block';
+            statusEl.className = `status ${type}`;
+            statusEl.innerHTML = message;
+        }
+        
+        function hideStatus(elementId) {
+            const statusEl = document.getElementById(elementId);
+            statusEl.style.display = 'none';
+        }
+        
+        function showSpinner(spinnerId, show = true) {
+            const spinner = document.getElementById(spinnerId);
+            spinner.style.display = show ? 'inline-block' : 'none';
+        }
+        
+        function addAIMessage(type, content) {
+            const chatContainer = document.getElementById('aiChatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}-message`;
+            
+            if (type === 'user') {
+                messageDiv.innerHTML = `<strong>用户:</strong><br>${content}`;
+            } else if (type === 'ai') {
+                const processedContent = preprocessLatex(content);
+                messageDiv.innerHTML = `<strong>AI助手:</strong><br><div id="ai-content-${Date.now()}">${processedContent}</div>`;
+                
+                setTimeout(() => {
+                    const contentDiv = messageDiv.querySelector('[id^="ai-content-"]');
+                    if (contentDiv) {
+                        renderMathInElement(contentDiv, {
+                            delimiters: [
+                                {left: '$$', right: '$$', display: true},
+                                {left: '$', right: '$', display: false}
+                            ],
+                            throwOnError: false,
+                            errorCallback: function(msg, err) {
+                                console.error('KaTeX渲染错误:', msg, err);
+                                const errorSpan = document.createElement('span');
+                                errorSpan.className = 'math-error';
+                                errorSpan.textContent = `LaTeX错误: ${msg}`;
+                                contentDiv.appendChild(document.createElement('br'));
+                                contentDiv.appendChild(errorSpan);
+                            }
+                        });
+                    }
+                }, 100);
+            } else {
+                messageDiv.innerHTML = `<strong>系统:</strong><br>${content}`;
+            }
+            
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        async function testAIChat() {
+            const message = document.getElementById('chatMessage').value.trim();
+            const btn = document.getElementById('aiChatBtn');
+            
+            if (!message) {
+                alert('请输入聊天消息');
+                return;
+            }
+            
+            showSpinner('aiChatSpinner', true);
+            btn.disabled = true;
+            showStatus('aiChatStatus', 'loading', '<span class="spinner"></span> AI助手正在思考...');
+            
+            addAIMessage('user', message);
+            
+            try {
+                const response = await fetch('/api/ai/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success && data.response) {
+                    addAIMessage('ai', data.response);
+                    showStatus('aiChatStatus', 'success', '✅ AI回复成功，数学公式已渲染');
+                    document.getElementById('chatMessage').value = '';
+                } else {
+                    throw new Error(data.error || 'AI响应格式错误');
+                }
+                
+            } catch (error) {
+                console.error('AI聊天失败:', error);
+                addAIMessage('system', `❌ 错误: ${error.message}`);
+                showStatus('aiChatStatus', 'error', `❌ AI聊天失败: ${error.message}`);
+            } finally {
+                showSpinner('aiChatSpinner', false);
+                btn.disabled = false;
+                setTimeout(() => hideStatus('aiChatStatus'), 5000);
+            }
+        }
+        
+        function clearAIChat() {
+            const chatContainer = document.getElementById('aiChatContainer');
+            chatContainer.innerHTML = `
+                <div class="message system-message">
+                    AI助手准备就绪，有问题随时问我！
+                </div>
+            `;
+            hideStatus('aiChatStatus');
+        }
+        
+        async function testKnowledgePoint() {
+            const name = document.getElementById('knowledgePointName').value.trim();
+            const subject = document.getElementById('knowledgeSubject').value;
+            const btn = document.getElementById('knowledgeBtn');
+            const resultsDiv = document.getElementById('knowledgeResults');
+            
+            if (!name) {
+                alert('请输入知识点名称');
+                return;
+            }
+            
+            showSpinner('knowledgeSpinner', true);
+            btn.disabled = true;
+            showStatus('knowledgeStatus', 'loading', '<span class="spinner"></span> 正在获取知识点详情...');
+            
+            try {
+                const response = await fetch(`/api/knowledge-points/${encodeURIComponent(name)}?subject=${encodeURIComponent(subject)}`);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success && data.knowledgePoint) {
+                    const kp = data.knowledgePoint;
+                    
+                    let html = `
+                        <div class="knowledge-point-card">
+                            <div class="knowledge-point-title">${name}</div>
+                            <div class="test-item">
+                                <div class="test-label">定义:</div>
+                                <div class="test-content" id="kp-definition">${kp.definition}</div>
+                                <div class="raw-text">原始文本: ${kp.definition}</div>
+                            </div>
+                    `;
+                    
+                    if (kp.relatedConcepts && kp.relatedConcepts.length > 0) {
+                        html += `
+                            <div class="test-item">
+                                <div class="test-label">相关概念:</div>
+                                <div class="test-content">
+                                    ${kp.relatedConcepts.map(concept => `<span style="display: inline-block; margin: 4px 8px 4px 0; padding: 4px 8px; background: #e2e8f0; border-radius: 4px;">${concept}</span>`).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    html += `</div>`;
+                    
+                    resultsDiv.innerHTML = html;
+                    resultsDiv.style.display = 'block';
+                    
+                    // 渲染数学公式
+                    setTimeout(() => {
+                        const definitionEl = document.getElementById('kp-definition');
+                        if (definitionEl) {
+                            const processedContent = preprocessLatex(definitionEl.textContent);
+                            definitionEl.innerHTML = processedContent;
+                            
+                            renderMathInElement(definitionEl, {
+                                delimiters: [
+                                    {left: '$$', right: '$$', display: true},
+                                    {left: '$', right: '$', display: false}
+                                ],
+                                throwOnError: false,
+                                errorCallback: function(msg, err) {
+                                    console.error('KaTeX渲染错误:', msg, err);
+                                    const errorSpan = document.createElement('span');
+                                    errorSpan.className = 'math-error';
+                                    errorSpan.textContent = `LaTeX错误: ${msg}`;
+                                    definitionEl.appendChild(document.createElement('br'));
+                                    definitionEl.appendChild(errorSpan);
+                                }
+                            });
+                        }
+                    }, 100);
+                    
+                    showStatus('knowledgeStatus', 'success', '✅ 知识点获取成功，数学公式已渲染');
+                } else {
+                    throw new Error(data.error || '知识点数据格式错误');
+                }
+                
+            } catch (error) {
+                console.error('获取知识点失败:', error);
+                showStatus('knowledgeStatus', 'error', `❌ 获取知识点失败: ${error.message}`);
+                resultsDiv.style.display = 'none';
+            } finally {
+                showSpinner('knowledgeSpinner', false);
+                btn.disabled = false;
+                setTimeout(() => hideStatus('knowledgeStatus'), 5000);
+            }
+        }
+        
+        function clearKnowledgePoint() {
+            document.getElementById('knowledgeResults').style.display = 'none';
+            hideStatus('knowledgeStatus');
+        }
+        
+        async function testRealTimeSolutions() {
+            const question = document.getElementById('questionContent').value.trim();
+            const subject = document.getElementById('questionSubject').value;
+            const difficulty = document.getElementById('questionDifficulty').value;
+            const btn = document.getElementById('solutionsBtn');
+            const resultsDiv = document.getElementById('solutionsResults');
+            
+            if (!question) {
+                alert('请输入题目内容');
+                return;
+            }
+            
+            showSpinner('solutionsSpinner', true);
+            btn.disabled = true;
+            showStatus('solutionsStatus', 'loading', '<span class="spinner"></span> 正在生成答题方案...');
+            
+            try {
+                const response = await fetch('/api/ai/solutions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        question,
+                        subject,
+                        difficulty
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success && data.solutions) {
+                    let html = '';
+                    
+                    data.solutions.forEach((solution, index) => {
+                        html += `
+                            <div class="solution-item">
+                                <div class="solution-title">方案 ${index + 1}: ${solution.title || '解题方案'}</div>
+                                <div class="solution-content" id="solution-${index}">
+                                    <div><strong>解题思路:</strong> ${solution.approach || ''}</div>
+                                    <div><strong>步骤:</strong></div>
+                                    <ol>
+                                        ${(solution.steps || []).map(step => `<li>${step}</li>`).join('')}
+                                    </ol>
+                                    <div><strong>关键要点:</strong></div>
+                                    <ul>
+                                        ${(solution.keyPoints || []).map(point => `<li>${point}</li>`).join('')}
+                                    </ul>
+                                </div>
+                                <div class="raw-text">原始JSON: ${JSON.stringify(solution, null, 2)}</div>
+                            </div>
+                        `;
+                    });
+                    
+                    resultsDiv.innerHTML = html;
+                    resultsDiv.style.display = 'block';
+                    
+                    // 渲染数学公式
+                    setTimeout(() => {
+                        data.solutions.forEach((solution, index) => {
+                            const solutionEl = document.getElementById(`solution-${index}`);
+                            if (solutionEl) {
+                                const processedContent = preprocessLatex(solutionEl.innerHTML);
+                                solutionEl.innerHTML = processedContent;
+                                
+                                renderMathInElement(solutionEl, {
+                                    delimiters: [
+                                        {left: '$$', right: '$$', display: true},
+                                        {left: '$', right: '$', display: false}
+                                    ],
+                                    throwOnError: false,
+                                    errorCallback: function(msg, err) {
+                                        console.error('KaTeX渲染错误:', msg, err);
+                                        const errorSpan = document.createElement('span');
+                                        errorSpan.className = 'math-error';
+                                        errorSpan.textContent = `LaTeX错误: ${msg}`;
+                                        solutionEl.appendChild(document.createElement('br'));
+                                        solutionEl.appendChild(errorSpan);
+                                    }
+                                });
+                            }
+                        });
+                    }, 100);
+                    
+                    showStatus('solutionsStatus', 'success', '✅ 答题方案生成成功，数学公式已渲染');
+                } else {
+                    throw new Error(data.error || '答题方案数据格式错误');
+                }
+                
+            } catch (error) {
+                console.error('生成答题方案失败:', error);
+                showStatus('solutionsStatus', 'error', `❌ 生成答题方案失败: ${error.message}`);
+                resultsDiv.style.display = 'none';
+            } finally {
+                showSpinner('solutionsSpinner', false);
+                btn.disabled = false;
+                setTimeout(() => hideStatus('solutionsStatus'), 5000);
+            }
+        }
+        
+        function clearSolutions() {
+            document.getElementById('solutionsResults').style.display = 'none';
+            hideStatus('solutionsStatus');
+        }
+        
+        function renderTestFormulas() {
+            setTimeout(() => {
+                renderMathInElement(document.body, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false}
+                    ],
+                    throwOnError: false,
+                    errorCallback: function(msg, err) {
+                        console.error('KaTeX渲染错误:', msg, err);
+                    }
+                });
+            }, 100);
+        }
+        
+        // 回车发送消息
+        document.getElementById('chatMessage').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                testAIChat();
+            }
+        });
+        
+        document.getElementById('knowledgePointName').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                testKnowledgePoint();
+            }
+        });
+        
+        // 页面加载完成后渲染测试公式
+        document.addEventListener('DOMContentLoaded', () => {
+            renderTestFormulas();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识点刷新功能测试</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section { 
+            margin: 20px 0; 
+            padding: 15px; 
+            border: 1px solid #ddd; 
+            border-radius: 5px;
+        }
+        button { 
+            padding: 10px 15px; 
+            margin: 5px; 
+            cursor: pointer; 
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result { 
+            margin-top: 10px; 
+            padding: 10px; 
+            background: #f8f9fa; 
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .error { 
+            background: #ffebee; 
+            color: #c62828; 
+            border-left: 4px solid #f44336;
+        }
+        .success { 
+            background: #e8f5e8; 
+            color: #2e7d32; 
+            border-left: 4px solid #4caf50;
+        }
+        .warning {
+            background: #fff3e0;
+            color: #f57c00;
+            border-left: 4px solid #ff9800;
+        }
+        .input-group {
+            margin: 10px 0;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .status {
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .loading {
+            background: #e3f2fd;
+            color: #1976d2;
+            border-left: 4px solid #2196f3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 知识点刷新功能测试</h1>
+        <p>测试知识点详情页面的刷新按钮功能，验证API响应格式是否正确。</p>
+        
+        <div class="test-section">
+            <h3>📝 测试参数设置</h3>
+            <div class="input-group">
+                <label for="knowledgePoint">知识点名称:</label>
+                <input type="text" id="knowledgePoint" value="导数" placeholder="请输入知识点名称">
+            </div>
+            <div class="input-group">
+                <label for="subject">学科:</label>
+                <select id="subject">
+                    <option value="数学">数学</option>
+                    <option value="物理">物理</option>
+                    <option value="化学">化学</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h3>🧪 测试操作</h3>
+            <button onclick="testGetKnowledgePoint()">1. 获取知识点信息</button>
+            <button onclick="testRefreshKnowledgePoint()">2. 刷新知识点 (测试修复)</button>
+            <button onclick="testBothOperations()">3. 完整测试流程</button>
+            <button onclick="clearResults()">清空结果</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>📊 测试结果</h3>
+            <div id="status" class="status">准备就绪</div>
+            <div id="result" class="result">等待测试...</div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:5001/api';
+        
+        function addResult(message, isError = false, isWarning = false) {
+            const resultDiv = document.getElementById('result');
+            const timestamp = new Date().toLocaleTimeString();
+            const prefix = isError ? '❌' : isWarning ? '⚠️' : '✅';
+            resultDiv.textContent += `[${timestamp}] ${prefix} ${message}\n`;
+            resultDiv.scrollTop = resultDiv.scrollHeight;
+            
+            if (isError) {
+                resultDiv.className = 'result error';
+            } else if (isWarning) {
+                resultDiv.className = 'result warning';
+            } else {
+                resultDiv.className = 'result success';
+            }
+        }
+        
+        function setStatus(message, type = 'loading') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+        
+        function clearResults() {
+            document.getElementById('result').textContent = '结果已清空，等待新的测试...';
+            document.getElementById('result').className = 'result';
+            setStatus('准备就绪', '');
+        }
+        
+        async function testGetKnowledgePoint() {
+            const knowledgePoint = document.getElementById('knowledgePoint').value;
+            const subject = document.getElementById('subject').value;
+            
+            if (!knowledgePoint || !subject) {
+                addResult('请输入知识点名称和选择学科', true);
+                return;
+            }
+            
+            try {
+                setStatus('正在获取知识点信息...', 'loading');
+                addResult(`开始测试获取知识点: ${knowledgePoint} (${subject})`);
+                
+                const url = `${API_BASE_URL}/knowledge-points/${encodeURIComponent(knowledgePoint)}?subject=${encodeURIComponent(subject)}`;
+                addResult(`请求URL: ${url}`);
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                addResult(`响应状态: ${response.status} ${response.statusText}`);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    addResult(`HTTP错误: ${response.status} - ${errorText}`, true);
+                    setStatus('获取失败', 'error');
+                    return;
+                }
+                
+                const data = await response.json();
+                addResult(`响应数据结构检查:`);
+                addResult(`- success: ${data.success}`);
+                addResult(`- data存在: ${!!data.data}`);
+                
+                if (data.success && data.data) {
+                    addResult(`✅ 知识点信息获取成功`);
+                    addResult(`- 名称: ${data.data.name}`);
+                    addResult(`- 学科: ${data.data.subject}`);
+                    addResult(`- 来源: ${data.data.source}`);
+                    addResult(`- 定义长度: ${data.data.definition?.length || 0} 字符`);
+                    addResult(`- 相关概念数量: ${data.data.relatedConcepts?.length || 0}`);
+                    setStatus('获取成功', 'success');
+                } else {
+                    addResult(`API响应格式错误: ${data.error || '未知错误'}`, true);
+                    setStatus('响应格式错误', 'error');
+                }
+                
+            } catch (error) {
+                addResult(`请求异常: ${error.message}`, true);
+                setStatus('请求异常', 'error');
+                console.error('获取知识点失败:', error);
+            }
+        }
+        
+        async function testRefreshKnowledgePoint() {
+            const knowledgePoint = document.getElementById('knowledgePoint').value;
+            const subject = document.getElementById('subject').value;
+            
+            if (!knowledgePoint || !subject) {
+                addResult('请输入知识点名称和选择学科', true);
+                return;
+            }
+            
+            try {
+                setStatus('正在刷新知识点...', 'loading');
+                addResult(`开始测试刷新知识点: ${knowledgePoint} (${subject})`);
+                
+                const url = `${API_BASE_URL}/knowledge-points/${encodeURIComponent(knowledgePoint)}/update?subject=${encodeURIComponent(subject)}`;
+                addResult(`刷新请求URL: ${url}`);
+                
+                const response = await fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                addResult(`刷新响应状态: ${response.status} ${response.statusText}`);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    addResult(`刷新HTTP错误: ${response.status} - ${errorText}`, true);
+                    setStatus('刷新失败', 'error');
+                    return;
+                }
+                
+                const data = await response.json();
+                addResult(`刷新响应数据结构检查:`);
+                addResult(`- success: ${data.success}`);
+                addResult(`- data存在: ${!!data.data}`);
+                
+                if (data.success && data.data) {
+                    addResult(`✅ 知识点刷新成功`);
+                    addResult(`- 刷新后名称: ${data.data.name}`);
+                    addResult(`- 刷新后学科: ${data.data.subject}`);
+                    addResult(`- 刷新后来源: ${data.data.source}`);
+                    addResult(`- 刷新后定义长度: ${data.data.definition?.length || 0} 字符`);
+                    addResult(`- 刷新后相关概念数量: ${data.data.relatedConcepts?.length || 0}`);
+                    addResult(`- 最后更新时间: ${data.data.lastUpdated}`);
+                    setStatus('刷新成功', 'success');
+                } else {
+                    addResult(`刷新API响应格式错误: ${data.error || '未知错误'}`, true);
+                    setStatus('刷新响应格式错误', 'error');
+                }
+                
+            } catch (error) {
+                addResult(`刷新请求异常: ${error.message}`, true);
+                setStatus('刷新请求异常', 'error');
+                console.error('刷新知识点失败:', error);
+            }
+        }
+        
+        async function testBothOperations() {
+            addResult('=== 开始完整测试流程 ===');
+            
+            // 先获取知识点
+            await testGetKnowledgePoint();
+            
+            // 等待1秒
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // 再刷新知识点
+            await testRefreshKnowledgePoint();
+            
+            addResult('=== 完整测试流程结束 ===');
+        }
+        
+        // 页面加载完成后的初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            addResult('页面加载完成，可以开始测试');
+            addResult('测试服务器地址: ' + API_BASE_URL);
+        });
+    </script>
+</body>
+</html>

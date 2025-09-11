@@ -10,6 +10,13 @@ import StudyPage from '@/pages/StudyPage'
 import ProfilePage from '@/pages/ProfilePage'
 import LearningPath from '@/pages/LearningPath'
 import CreateLearningPath from '@/pages/CreateLearningPath'
+import ExamOutlinePage from '@/pages/ExamOutlinePage'
+import TestImageUpload from '@/pages/TestImageUpload'
+import TestLatexComponent from './test-latex-component'
+import MathTest from '@/components/MathTest'
+import ChatTest from '@/components/ChatTest'
+import QuestionBankPage from '@/pages/QuestionBankPage'
+
 import ProtectedRoute from '@/components/ProtectedRoute'
 
 function App() {
@@ -69,6 +76,56 @@ function App() {
             </Layout>
           </ProtectedRoute>
         } />
+        
+        <Route path="/exam-outline" element={
+          <ProtectedRoute>
+            <Layout>
+              <ExamOutlinePage />
+            </Layout>
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/test-upload" element={
+          <ProtectedRoute>
+            <Layout>
+              <TestImageUpload />
+            </Layout>
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/test-latex" element={
+          <ProtectedRoute>
+            <Layout>
+              <TestLatexComponent />
+            </Layout>
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/math-test" element={
+          <ProtectedRoute>
+            <Layout>
+              <MathTest />
+            </Layout>
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/chat-test" element={
+          <ProtectedRoute>
+            <Layout>
+              <ChatTest />
+            </Layout>
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/question-bank" element={
+          <ProtectedRoute>
+            <Layout>
+              <QuestionBankPage />
+            </Layout>
+          </ProtectedRoute>
+        } />
+        
+
       </Routes>
       <Toaster
         position="top-right"

@@ -9,8 +9,13 @@ try {
   if (process.env.AZURE_OPENAI_API_KEY && process.env.AZURE_OPENAI_ENDPOINT) {
     openai = new OpenAI({
       apiKey: process.env.AZURE_OPENAI_API_KEY,
-      baseURL: process.env.AZURE_OPENAI_ENDPOINT
+      baseURL: `${process.env.AZURE_OPENAI_ENDPOINT}/openai/deployments/${process.env.AZURE_OPENAI_DEPLOYMENT_NAME}`,
+      defaultQuery: { 'api-version': process.env.AZURE_OPENAI_API_VERSION || '2024-02-15-preview' },
+      defaultHeaders: {
+        'api-key': process.env.AZURE_OPENAI_API_KEY,
+      },
     })
+    console.log('Azure OpenAI客户端初始化成功，部署名称:', process.env.AZURE_OPENAI_DEPLOYMENT_NAME)
   }
 } catch (error) {
   console.warn('OpenAI客户端初始化失败:', error.message)
@@ -22,7 +27,7 @@ try {
  */
 class OCRService {
   constructor() {
-    this.supportedFormats = ['.jpg', '.jpeg', '.png', '.pdf', '.webp']
+    this.supportedFormats = ['.jpg', '.jpeg', '.png', '.pdf', '.webp', '.svg']
     this.maxFileSize = 300 * 1024 * 1024 // 300MB
     this.maxImageSize = 2048 // 最大图片尺寸
   }
@@ -84,7 +89,7 @@ class OCRService {
       const base64Image = imageBuffer.toString('base64')
       
       const response = await openai.chat.completions.create({
-        model: 'gpt-4-vision-preview',
+        model: process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-4-vision-preview',
         messages: [
           {
             role: 'user',
@@ -98,6 +103,15 @@ class OCRService {
 3. 对于选择题，请保持A、B、C、D的选项格式
 4. 对于填空题，用______表示空白处
 5. 对于解答题，保持题目的完整性
+
+**重要：Markdown格式要求**
+- 请使用标准的Markdown格式，确保与react-markdown完全兼容
+- 标题使用 # ## ### 等格式
+- 列表使用 - 或 1. 格式
+- 代码块使用 \`\`\`语言 格式
+- 强调使用 **粗体** 或 *斜体*
+- 链接使用 [文本](URL) 格式
+- 表格使用标准Markdown表格格式
 
 请直接输出识别的文字内容，不要添加额外的说明。`
               },
@@ -164,6 +178,29 @@ ${text}
 5. 根据题目内容合理估算分值和难度
 6. 知识点要具体且相关
 
+**重要：Markdown格式要求**
+- 请使用标准的Markdown格式，确保与react-markdown完全兼容
+- 标题使用 # ## ### 等格式
+- 列表使用 - 或 1. 格式
+- 代码块使用 \`\`\`语言 格式
+- 强调使用 **粗体** 或 *斜体*
+- 链接使用 [文本](URL) 格式
+- 表格使用标准Markdown表格格式
+
+**重要：数学公式格式要求**
+- 必须使用严格的KaTeX兼容格式，严禁使用Unicode数学符号
+- 行内公式请使用 $公式$ 格式，如：$x^2 + 2x - 3 = 0$
+- 块级公式请使用 $$公式$$ 格式，如：$$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$
+- KaTeX命令使用单反斜杠，如：\\frac、\\sqrt、\\pm
+- 上标用^，下标用_，如：$x^2$、$a_1$
+- 分数用\\frac{分子}{分母}，如：$\\frac{1}{2}$
+- 根号用\\sqrt{}，如：$\\sqrt{16}$
+- 正负号用\\pm，如：$\\pm 2$
+- 积分用\\int，如：$\\int x dx$
+- 求和用\\sum，如：$\\sum_{i=1}^{n} i$
+- 禁止使用：∫、²、³、×、÷、±、≤、≥、≠、π等Unicode符号
+- 必须用KaTeX：\\int、^2、^3、\\times、\\div、\\pm、\\leq、\\geq、\\neq、\\pi
+
 请只输出JSON格式的结果，不要包含其他文字。`
 
       const response = await openai.chat.completions.create({
@@ -199,7 +236,25 @@ ${text}
   }
 
   /**
-   * 处理试卷文件
+   * 获取文件MIME类型
+   * @param {string} filePath - 文件路径
+   * @returns {string}
+   */
+  getMimeType(filePath) {
+    const ext = path.extname(filePath).toLowerCase()
+    const mimeTypes = {
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.webp': 'image/webp',
+      '.svg': 'image/svg+xml',
+      '.pdf': 'application/pdf'
+    }
+    return mimeTypes[ext] || 'application/octet-stream'
+  }
+
+  /**
+   * 处理单个试卷文件（直接存储图片）
    * @param {string} filePath - 文件路径
    * @param {Object} paperInfo - 试卷信息
    * @returns {Promise<Object>}
@@ -219,38 +274,34 @@ ${text}
 
       console.log(`开始处理试卷文件: ${filePath}`)
       
-      // 提取文本
-      const extractedText = await this.extractTextFromImage(filePath)
-      if (!extractedText.trim()) {
-        throw new Error('未能从图片中提取到文字内容')
-      }
-
-      console.log('文本提取完成，开始解析题目...')
+      // 预处理图片（优化尺寸和质量）
+      const imageBuffer = await this.preprocessImage(filePath)
       
-      // 解析题目
-      const questions = await this.parseQuestions(extractedText, paperInfo)
-      if (!questions || questions.length === 0) {
-        throw new Error('未能解析出有效题目')
+      // 获取图片信息
+      const imageInfo = {
+        originalPath: filePath,
+        size: stats.size,
+        mimeType: this.getMimeType(filePath),
+        processedAt: new Date().toISOString()
       }
 
-      console.log(`题目解析完成，共解析出 ${questions.length} 道题目`)
+      console.log('图片处理完成，准备存储')
 
       return {
         success: true,
-        extractedText,
-        questions,
-        totalQuestions: questions.length,
-        totalScore: questions.reduce((sum, q) => sum + (q.score || 0), 0)
+        imageBuffer,
+        imageInfo,
+        filePath,
+        paperInfo
       }
     } catch (error) {
       console.error('试卷处理失败:', error)
       return {
         success: false,
         error: error.message,
-        extractedText: null,
-        questions: [],
-        totalQuestions: 0,
-        totalScore: 0
+        imageBuffer: null,
+        imageInfo: null,
+        filePath: null
       }
     }
   }
@@ -340,6 +391,29 @@ ${JSON.stringify(questions, null, 2)}
 3. 根据题目类型和复杂度调整分值
 4. 补充或优化题目解析
 5. 确保选择题的正确答案格式正确
+
+**重要：Markdown格式要求**
+- 请使用标准的Markdown格式，确保与react-markdown完全兼容
+- 标题使用 # ## ### 等格式
+- 列表使用 - 或 1. 格式
+- 代码块使用 \`\`\`语言 格式
+- 强调使用 **粗体** 或 *斜体*
+- 链接使用 [文本](URL) 格式
+- 表格使用标准Markdown表格格式
+
+**重要：数学公式格式要求**
+- 必须使用严格的KaTeX兼容格式，严禁使用Unicode数学符号
+- 行内公式请使用 $公式$ 格式，如：$x^2 + 2x - 3 = 0$
+- 块级公式请使用 $$公式$$ 格式，如：$$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$
+- KaTeX命令使用单反斜杠，如：\\frac、\\sqrt、\\pm
+- 上标用^，下标用_，如：$x^2$、$a_1$
+- 分数用\\frac{分子}{分母}，如：$\\frac{1}{2}$
+- 根号用\\sqrt{}，如：$\\sqrt{16}$
+- 正负号用\\pm，如：$\\pm 2$
+- 积分用\\int，如：$\\int x dx$
+- 求和用\\sum，如：$\\sum_{i=1}^{n} i$
+- 禁止使用：∫、²、³、×、÷、±、≤、≥、≠、π等Unicode符号
+- 必须用KaTeX：\\int、^2、^3、\\times、\\div、\\pm、\\leq、\\geq、\\neq、\\pi
 
 请输出优化后的JSON格式结果。`
 

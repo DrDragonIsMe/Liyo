@@ -12,7 +12,22 @@ import {
 } from '@heroicons/react/24/outline'
 import api from '../utils/api'
 import { toast } from 'react-hot-toast'
+import ReactMarkdown from 'react-markdown'
 import MathRenderer from './MathRenderer'
+import MarkdownRenderer from './MarkdownRenderer'
+
+// 添加数学公式样式
+const mathStyles = `
+  .math-content .katex {
+    font-size: 1em;
+  }
+  .math-content .katex-display {
+    margin: 0.5em 0;
+  }
+  .math-content .katex-display > .katex {
+    text-align: center;
+  }
+`
 
 interface KnowledgePointDetailProps {
   knowledgePoint: string
@@ -72,12 +87,23 @@ const KnowledgePointDetail: React.FC<KnowledgePointDetailProps> = ({
       setLoading(true)
       setError(null)
       
-      const url = `/knowledge-points/${encodeURIComponent(knowledgePoint)}?subject=${encodeURIComponent(subject)}${forceUpdate ? '&forceUpdate=true' : ''}`
+      const safeSubject = subject || '数学'
+      const url = `/knowledge-points/${encodeURIComponent(knowledgePoint)}?subject=${encodeURIComponent(safeSubject)}${forceUpdate ? '&forceUpdate=true' : ''}`
       const response = await api.get(url)
       
-      setKnowledgeInfo(response.data.data)
-      setEditedDefinition(response.data.data.definition)
-      setEditedConcepts(response.data.data.relatedConcepts || [])
+      // 检查响应数据结构
+      if (!response || !response.success || !response.data) {
+        throw new Error(response?.error || 'API响应数据格式错误')
+      }
+      
+      const knowledgeData = response.data
+      if (!knowledgeData.definition) {
+        throw new Error('知识点定义数据缺失')
+      }
+      
+      setKnowledgeInfo(knowledgeData)
+      setEditedDefinition(knowledgeData.definition)
+      setEditedConcepts(knowledgeData.relatedConcepts || [])
     } catch (err: any) {
       console.error('获取知识点信息失败:', err)
       setError(err.response?.data?.error || '获取知识点信息失败')
@@ -91,18 +117,36 @@ const KnowledgePointDetail: React.FC<KnowledgePointDetailProps> = ({
       setIsUpdating(true)
       setOriginalData(knowledgeInfo) // 保存原始数据用于对比
       
-      const response = await api.put(`/knowledge-points/${encodeURIComponent(knowledgePoint)}/update?subject=${encodeURIComponent(subject)}`)
+      const safeSubject = subject || '数学'
+      const response = await api.put(`/knowledge-points/${encodeURIComponent(knowledgePoint)}/update?subject=${encodeURIComponent(safeSubject)}`)
       
-      if (response.data.success) {
-        setKnowledgeInfo(response.data.data)
-        setEditedDefinition(response.data.data.definition)
-        setEditedConcepts(response.data.data.relatedConcepts || [])
+      if (response && response.success && response.data) {
+        setKnowledgeInfo(response.data)
+        setEditedDefinition(response.data.definition)
+        setEditedConcepts(response.data.relatedConcepts || [])
         setShowComparison(true) // 显示对比界面
         toast.success('知识点已更新')
+      } else {
+        throw new Error(response?.error || 'API响应格式错误')
       }
     } catch (err: any) {
       console.error('更新知识点失败:', err)
-      toast.error(err.response?.data?.error || '更新知识点失败')
+      // 更详细的错误处理
+      let errorMessage = '更新知识点失败'
+      if (err.message.includes('HTTP error! status: 401')) {
+        errorMessage = '未授权访问，请重新登录'
+      } else if (err.message.includes('HTTP error! status: 403')) {
+        errorMessage = '权限不足，无法更新知识点'
+      } else if (err.message.includes('HTTP error! status: 404')) {
+        errorMessage = '知识点不存在'
+      } else if (err.message.includes('HTTP error! status: 500')) {
+        errorMessage = '服务器内部错误，请稍后重试'
+      } else if (err.response?.data?.error) {
+        errorMessage = err.response.data.error
+      } else if (err.message) {
+        errorMessage = err.message
+      }
+      toast.error(errorMessage)
     } finally {
       setIsUpdating(false)
     }
@@ -110,21 +154,27 @@ const KnowledgePointDetail: React.FC<KnowledgePointDetailProps> = ({
   
   const handleEdit = async () => {
     try {
+      const safeSubject = subject || '数学'
       const response = await api.put(`/knowledge-points/${encodeURIComponent(knowledgePoint)}/edit`, {
         definition: editedDefinition,
         relatedConcepts: editedConcepts,
-        subject: subject,
+        subject: safeSubject,
         editReason: '用户编辑'
       })
       
-      if (response.data.success) {
-        setKnowledgeInfo(response.data.data)
+      if (response.success && response.data) {
+        // 更新知识点信息
+        setKnowledgeInfo(response.data)
+        setEditedDefinition(response.data.definition)
+        setEditedConcepts(response.data.relatedConcepts || [])
         setIsEditing(false)
         toast.success('知识点已保存')
+      } else {
+        throw new Error(response.error || '保存失败')
       }
     } catch (err: any) {
       console.error('编辑知识点失败:', err)
-      toast.error(err.response?.data?.error || '编辑知识点失败')
+      toast.error(err.response?.data?.error || err.message || '编辑知识点失败')
     }
   }
   
@@ -206,6 +256,7 @@ const KnowledgePointDetail: React.FC<KnowledgePointDetailProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <style>{mathStyles}</style>
       <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         {/* 标题栏 */}
         <div className="flex items-center justify-between mb-6">
@@ -397,7 +448,9 @@ const KnowledgePointDetail: React.FC<KnowledgePointDetailProps> = ({
                   placeholder="输入知识点定义..."
                 />
               ) : (
-                <p className="text-blue-800 leading-relaxed">{knowledgeInfo.definition}</p>
+                <div className="leading-relaxed math-content">
+                  <MarkdownRenderer content={knowledgeInfo.definition} />
+                </div>
               )}
               {knowledgeInfo.lastUpdated && (
                 <div className="mt-2 text-xs text-gray-500">
@@ -437,8 +490,8 @@ const KnowledgePointDetail: React.FC<KnowledgePointDetailProps> = ({
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       {knowledgeInfo.relatedConcepts.map((concept, index) => (
-                        <span key={index} className="px-2 py-1 bg-blue-200 text-blue-800 text-xs rounded-full">
-                          {concept}
+                        <span key={index} className="px-2 py-1 bg-blue-50 border border-blue-200 rounded math-content">
+                          <MarkdownRenderer content={concept} />
                         </span>
                       ))}
                     </div>
@@ -511,8 +564,8 @@ const KnowledgePointDetail: React.FC<KnowledgePointDetailProps> = ({
                           </span>
                         </div>
                       </div>
-                      <div className="text-sm text-gray-700 line-clamp-2">
-                        <MathRenderer content={question.content} />
+                      <div className="text-sm text-gray-700 line-clamp-2 math-content">
+                        <MarkdownRenderer content={question.content} />
                       </div>
                     </div>
                   ))}

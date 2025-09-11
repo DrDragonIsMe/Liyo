@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全功能测试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .loading {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: inherit;
+        }
+        textarea {
+            height: 80px;
+            resize: vertical;
+        }
+        .form-group {
+            margin: 10px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-success { background: #28a745; }
+        .status-error { background: #dc3545; }
+        .status-pending { background: #ffc107; }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Studdy 全功能测试页面</h1>
+    <p>测试所有核心功能：知识点生成、补充答案、AI提问</p>
+    
+    <div class="grid">
+        <!-- 左侧：API测试 -->
+        <div>
+            <div class="test-section">
+                <h3>🔧 API连接测试</h3>
+                <button onclick="testServerConnection()">测试服务器连接</button>
+                <button onclick="testDatabaseConnection()">测试数据库连接</button>
+                <div id="connectionResult" class="result info">点击按钮开始测试...</div>
+            </div>
+
+            <div class="test-section">
+                <h3>🤖 AI提问功能测试</h3>
+                <div class="form-group">
+                    <label>测试问题：</label>
+                    <input type="text" id="aiQuestion" value="什么是二次函数？" placeholder="输入你的问题">
+                </div>
+                <button onclick="testAIChat()">发送AI问题</button>
+                <button onclick="testAIChatWithContext()">带题目上下文提问</button>
+                <div id="aiChatResult" class="result info">等待测试...</div>
+            </div>
+
+            <div class="test-section">
+                <h3>📝 用户补充内容API测试</h3>
+                <div class="form-group">
+                    <label>知识点名称：</label>
+                    <input type="text" id="knowledgePointName" value="二次函数基础" placeholder="输入知识点名称">
+                </div>
+                <div class="form-group">
+                    <label>补充内容：</label>
+                    <textarea id="supplementContent" placeholder="输入补充内容">二次函数是数学中重要的函数类型，其图像为抛物线。</textarea>
+                </div>
+                <button onclick="testCreateKnowledgePoint()">创建知识点补充</button>
+                <button onclick="testCreateAnswerSupplement()">创建答案补充</button>
+                <button onclick="testGetSupplements()">获取补充内容</button>
+                <div id="supplementResult" class="result info">等待测试...</div>
+            </div>
+        </div>
+
+        <!-- 右侧：功能状态和日志 -->
+        <div>
+            <div class="test-section">
+                <h3>📊 功能状态监控</h3>
+                <div id="statusMonitor">
+                    <p><span class="status-indicator status-pending"></span>服务器连接: 未测试</p>
+                    <p><span class="status-indicator status-pending"></span>数据库连接: 未测试</p>
+                    <p><span class="status-indicator status-pending"></span>AI聊天功能: 未测试</p>
+                    <p><span class="status-indicator status-pending"></span>知识点生成: 未测试</p>
+                    <p><span class="status-indicator status-pending"></span>补充答案: 未测试</p>
+                </div>
+            </div>
+
+            <div class="test-section">
+                <h3>📋 测试日志</h3>
+                <button onclick="clearLogs()">清空日志</button>
+                <div id="testLogs" class="result info">测试日志将显示在这里...</div>
+            </div>
+
+            <div class="test-section">
+                <h3>🚀 快速测试</h3>
+                <button onclick="runAllTests()" id="runAllBtn">运行所有测试</button>
+                <button onclick="testMainWorkflow()">测试主要工作流程</button>
+                <div id="quickTestResult" class="result info">点击按钮开始快速测试...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let testLogs = [];
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}`;
+            testLogs.push({ message: logEntry, type });
+            updateLogDisplay();
+        }
+        
+        function updateLogDisplay() {
+            const logDiv = document.getElementById('testLogs');
+            const recentLogs = testLogs.slice(-20); // 只显示最近20条
+            logDiv.textContent = recentLogs.map(log => log.message).join('\n');
+            logDiv.className = 'result info';
+        }
+        
+        function clearLogs() {
+            testLogs = [];
+            updateLogDisplay();
+        }
+        
+        function updateStatus(feature, status) {
+            const statusDiv = document.getElementById('statusMonitor');
+            const statusMap = {
+                'server': '服务器连接',
+                'database': '数据库连接', 
+                'ai': 'AI聊天功能',
+                'knowledge': '知识点生成',
+                'supplement': '补充答案'
+            };
+            
+            const statusClass = status === 'success' ? 'status-success' : 
+                              status === 'error' ? 'status-error' : 'status-pending';
+            
+            const statusText = status === 'success' ? '正常' : 
+                             status === 'error' ? '异常' : '未测试';
+            
+            // 更新对应的状态指示器
+            const lines = statusDiv.innerHTML.split('\n');
+            const updatedLines = lines.map(line => {
+                if (line.includes(statusMap[feature])) {
+                    return `<p><span class="status-indicator ${statusClass}"></span>${statusMap[feature]}: ${statusText}</p>`;
+                }
+                return line;
+            });
+            statusDiv.innerHTML = updatedLines.join('\n');
+        }
+        
+        async function testServerConnection() {
+            log('开始测试服务器连接...');
+            const resultDiv = document.getElementById('connectionResult');
+            resultDiv.textContent = '正在连接服务器...';
+            resultDiv.className = 'result loading';
+            
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                
+                if (response.ok && data.status === 'OK') {
+                    resultDiv.textContent = `✅ 服务器连接成功！\n\n响应: ${JSON.stringify(data, null, 2)}`;
+                    resultDiv.className = 'result success';
+                    updateStatus('server', 'success');
+                    log('服务器连接测试通过', 'success');
+                } else {
+                    throw new Error('服务器响应异常');
+                }
+            } catch (error) {
+                resultDiv.textContent = `❌ 服务器连接失败\n\n错误: ${error.message}`;
+                resultDiv.className = 'result error';
+                updateStatus('server', 'error');
+                log(`服务器连接测试失败: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testDatabaseConnection() {
+            log('开始测试数据库连接...');
+            const resultDiv = document.getElementById('connectionResult');
+            resultDiv.textContent = '正在测试数据库连接...';
+            resultDiv.className = 'result loading';
+            
+            try {
+                const response = await fetch('/api/questions?limit=1');
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.textContent = `✅ 数据库连接成功！\n\n测试查询结果: ${JSON.stringify(data, null, 2)}`;
+                    resultDiv.className = 'result success';
+                    updateStatus('database', 'success');
+                    log('数据库连接测试通过', 'success');
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (error) {
+                resultDiv.textContent = `❌ 数据库连接失败\n\n错误: ${error.message}`;
+                resultDiv.className = 'result error';
+                updateStatus('database', 'error');
+                log(`数据库连接测试失败: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testAIChat() {
+            const question = document.getElementById('aiQuestion').value;
+            if (!question.trim()) {
+                alert('请输入问题');
+                return;
+            }
+            
+            log(`开始测试AI聊天: ${question}`);
+            const resultDiv = document.getElementById('aiChatResult');
+            resultDiv.textContent = '正在向AI提问...';
+            resultDiv.className = 'result loading';
+            
+            try {
+                const requestBody = {
+                    message: question
+                };
+                
+                const response = await fetch('/api/ai/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.response) {
+                    resultDiv.textContent = `✅ AI回复成功！\n\n问题: ${question}\n\nAI回复: ${data.response}`;
+                    resultDiv.className = 'result success';
+                    updateStatus('ai', 'success');
+                    log('AI聊天测试通过', 'success');
+                } else {
+                    throw new Error(data.message || 'AI回复失败');
+                }
+            } catch (error) {
+                resultDiv.textContent = `❌ AI聊天失败\n\n错误: ${error.message}`;
+                resultDiv.className = 'result error';
+                updateStatus('ai', 'error');
+                log(`AI聊天测试失败: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testAIChatWithContext() {
+            const question = document.getElementById('aiQuestion').value;
+            if (!question.trim()) {
+                alert('请输入问题');
+                return;
+            }
+            
+            log(`开始测试带上下文的AI聊天: ${question}`);
+            const resultDiv = document.getElementById('aiChatResult');
+            resultDiv.textContent = '正在向AI提问（带题目上下文）...';
+            resultDiv.className = 'result loading';
+            
+            try {
+                const requestBody = {
+                    message: question,
+                    questionContext: {
+                        subject: '数学',
+                        difficulty: 'medium',
+                        content: '求解二次函数 f(x) = x² - 4x + 3 的最小值',
+                        knowledgePoints: ['二次函数', '函数最值']
+                    }
+                };
+                
+                const response = await fetch('/api/ai/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.response) {
+                    resultDiv.textContent = `✅ 带上下文的AI回复成功！\n\n问题: ${question}\n\nAI回复: ${data.response}`;
+                    resultDiv.className = 'result success';
+                    updateStatus('ai', 'success');
+                    log('带上下文的AI聊天测试通过', 'success');
+                } else {
+                    throw new Error(data.message || 'AI回复失败');
+                }
+            } catch (error) {
+                resultDiv.textContent = `❌ 带上下文的AI聊天失败\n\n错误: ${error.message}`;
+                resultDiv.className = 'result error';
+                updateStatus('ai', 'error');
+                log(`带上下文的AI聊天测试失败: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testCreateKnowledgePoint() {
+            const knowledgePointName = document.getElementById('knowledgePointName').value;
+            const supplementContent = document.getElementById('supplementContent').value;
+            
+            if (!knowledgePointName.trim() || !supplementContent.trim()) {
+                alert('请填写知识点名称和补充内容');
+                return;
+            }
+            
+            log(`开始测试创建知识点: ${knowledgePointName}`);
+            const resultDiv = document.getElementById('supplementResult');
+            resultDiv.textContent = '正在创建知识点补充...';
+            resultDiv.className = 'result loading';
+            
+            try {
+                const requestBody = {
+                    questionId: '507f1f77bcf86cd799439011', // 测试用的MongoDB ObjectId
+                    type: 'knowledge_point',
+                    selectedText: '二次函数',
+                    supplementContent: supplementContent,
+                    knowledgePointName: knowledgePointName,
+                    textPosition: {
+                        startIndex: 0,
+                        endIndex: 4,
+                        context: '二次函数是形如 f(x) = ax² + bx + c 的函数'
+                    }
+                };
+                
+                const response = await fetch('/api/user-supplements', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.textContent = `✅ 知识点补充创建成功！\n\n响应: ${JSON.stringify(data, null, 2)}`;
+                    resultDiv.className = 'result success';
+                    updateStatus('knowledge', 'success');
+                    log('知识点生成测试通过', 'success');
+                } else {
+                    throw new Error(data.message || '创建失败');
+                }
+            } catch (error) {
+                resultDiv.textContent = `❌ 知识点补充创建失败\n\n错误: ${error.message}`;
+                resultDiv.className = 'result error';
+                updateStatus('knowledge', 'error');
+                log(`知识点生成测试失败: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testCreateAnswerSupplement() {
+            const supplementContent = document.getElementById('supplementContent').value;
+            
+            if (!supplementContent.trim()) {
+                alert('请填写补充内容');
+                return;
+            }
+            
+            log('开始测试创建答案补充');
+            const resultDiv = document.getElementById('supplementResult');
+            resultDiv.textContent = '正在创建答案补充...';
+            resultDiv.className = 'result loading';
+            
+            try {
+                const requestBody = {
+                    questionId: '507f1f77bcf86cd799439011',
+                    type: 'answer_supplement',
+                    selectedText: 'a > 0 时开口向上',
+                    supplementContent: supplementContent,
+                    textPosition: {
+                        startIndex: 50,
+                        endIndex: 60,
+                        context: '当 a > 0 时开口向上，当 a < 0 时开口向下'
+                    }
+                };
+                
+                const response = await fetch('/api/user-supplements', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.textContent = `✅ 答案补充创建成功！\n\n响应: ${JSON.stringify(data, null, 2)}`;
+                    resultDiv.className = 'result success';
+                    updateStatus('supplement', 'success');
+                    log('补充答案测试通过', 'success');
+                } else {
+                    throw new Error(data.message || '创建失败');
+                }
+            } catch (error) {
+                resultDiv.textContent = `❌ 答案补充创建失败\n\n错误: ${error.message}`;
+                resultDiv.className = 'result error';
+                updateStatus('supplement', 'error');
+                log(`补充答案测试失败: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testGetSupplements() {
+            log('开始测试获取补充内容');
+            const resultDiv = document.getElementById('supplementResult');
+            resultDiv.textContent = '正在获取补充内容...';
+            resultDiv.className = 'result loading';
+            
+            try {
+                const questionId = '507f1f77bcf86cd799439011';
+                const response = await fetch(`/api/user-supplements/question/${questionId}`);
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.textContent = `✅ 获取补充内容成功！\n\n响应: ${JSON.stringify(data, null, 2)}`;
+                    resultDiv.className = 'result success';
+                    log('获取补充内容测试通过', 'success');
+                } else {
+                    throw new Error(data.message || '获取失败');
+                }
+            } catch (error) {
+                resultDiv.textContent = `❌ 获取补充内容失败\n\n错误: ${error.message}`;
+                resultDiv.className = 'result error';
+                log(`获取补充内容测试失败: ${error.message}`, 'error');
+            }
+        }
+        
+        async function runAllTests() {
+            const btn = document.getElementById('runAllBtn');
+            btn.disabled = true;
+            btn.textContent = '测试进行中...';
+            
+            log('开始运行所有测试...');
+            
+            try {
+                await testServerConnection();
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                await testDatabaseConnection();
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                await testAIChat();
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                await testCreateKnowledgePoint();
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                await testCreateAnswerSupplement();
+                
+                log('所有测试完成！', 'success');
+            } catch (error) {
+                log(`测试过程中出现错误: ${error.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '运行所有测试';
+            }
+        }
+        
+        async function testMainWorkflow() {
+            log('开始测试主要工作流程...');
+            const resultDiv = document.getElementById('quickTestResult');
+            resultDiv.textContent = '正在测试主要工作流程...';
+            resultDiv.className = 'result loading';
+            
+            try {
+                // 1. 测试AI聊天
+                log('步骤1: 测试AI聊天功能');
+                const aiResponse = await fetch('/api/ai/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: '什么是二次函数？' })
+                });
+                
+                if (!aiResponse.ok) throw new Error('AI聊天功能异常');
+                
+                // 2. 测试创建知识点
+                log('步骤2: 测试知识点生成功能');
+                const knowledgeResponse = await fetch('/api/user-supplements', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        questionId: '507f1f77bcf86cd799439011',
+                        type: 'knowledge_point',
+                        selectedText: '二次函数',
+                        supplementContent: '测试知识点内容',
+                        knowledgePointName: '测试知识点',
+                        textPosition: { startIndex: 0, endIndex: 4, context: '测试上下文' }
+                    })
+                });
+                
+                if (!knowledgeResponse.ok) throw new Error('知识点生成功能异常');
+                
+                // 3. 测试答案补充
+                log('步骤3: 测试答案补充功能');
+                const supplementResponse = await fetch('/api/user-supplements', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        questionId: '507f1f77bcf86cd799439011',
+                        type: 'answer_supplement',
+                        selectedText: '测试文字',
+                        supplementContent: '测试补充内容',
+                        textPosition: { startIndex: 0, endIndex: 4, context: '测试上下文' }
+                    })
+                });
+                
+                if (!supplementResponse.ok) throw new Error('答案补充功能异常');
+                
+                resultDiv.textContent = '✅ 主要工作流程测试通过！\n\n所有核心功能都正常工作：\n- AI聊天功能 ✓\n- 知识点生成 ✓\n- 答案补充 ✓';
+                resultDiv.className = 'result success';
+                log('主要工作流程测试完成', 'success');
+                
+            } catch (error) {
+                resultDiv.textContent = `❌ 主要工作流程测试失败\n\n错误: ${error.message}`;
+                resultDiv.className = 'result error';
+                log(`主要工作流程测试失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 页面加载时的初始化
+        window.onload = function() {
+            log('测试页面已加载，准备开始测试');
+        };
+    </script>
+</body>
+</html>

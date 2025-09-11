@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文字选择功能测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            white-space: pre-wrap;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .selectable-text {
+            padding: 15px;
+            border: 2px dashed #007bff;
+            border-radius: 8px;
+            background: #f0f8ff;
+            margin: 10px 0;
+            user-select: text;
+            cursor: text;
+        }
+    </style>
+</head>
+<body>
+    <h1>文字选择和知识点生成功能测试</h1>
+    
+    <div class="test-section">
+        <h3>测试文字选择</h3>
+        <p>请在下面的文本中选择一些文字，然后点击测试按钮：</p>
+        <div class="selectable-text" id="testText">
+            二次函数是形如 f(x) = ax² + bx + c (a ≠ 0) 的函数。其中 a、b、c 是常数，a 称为二次项系数，b 称为一次项系数，c 称为常数项。二次函数的图像是一条抛物线，当 a > 0 时开口向上，当 a < 0 时开口向下。
+        </div>
+        <button onclick="testTextSelection()">测试获取选中文字</button>
+        <div id="selectionResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>测试用户补充内容API</h3>
+        <button onclick="testCreateSupplement()">测试创建知识点补充</button>
+        <button onclick="testCreateAnswerSupplement()">测试创建答案补充</button>
+        <div id="supplementResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>测试获取补充内容</h3>
+        <button onclick="testGetSupplements()">测试获取题目补充内容</button>
+        <div id="getResult" class="result"></div>
+    </div>
+
+    <script>
+        function testTextSelection() {
+            const resultDiv = document.getElementById('selectionResult');
+            const selection = window.getSelection();
+            
+            if (!selection || selection.rangeCount === 0) {
+                resultDiv.textContent = '❌ 请先选择一些文字';
+                resultDiv.className = 'result error';
+                return;
+            }
+            
+            const selectedText = selection.toString().trim();
+            if (selectedText.length === 0) {
+                resultDiv.textContent = '❌ 选中的文字为空';
+                resultDiv.className = 'result error';
+                return;
+            }
+            
+            const range = selection.getRangeAt(0);
+            const textContent = document.getElementById('testText').textContent;
+            const startIndex = textContent.indexOf(selectedText);
+            const endIndex = startIndex + selectedText.length;
+            
+            resultDiv.textContent = `✅ 文字选择功能正常！\n\n选中文字: "${selectedText}"\n起始位置: ${startIndex}\n结束位置: ${endIndex}`;
+            resultDiv.className = 'result success';
+        }
+        
+        async function testCreateSupplement() {
+            const resultDiv = document.getElementById('supplementResult');
+            resultDiv.textContent = '正在测试创建知识点补充...';
+            resultDiv.className = 'result';
+            
+            try {
+                // 使用一个测试题目ID（可能不存在，但可以测试API格式）
+                const requestBody = {
+                    questionId: '507f1f77bcf86cd799439011', // 测试用的MongoDB ObjectId格式
+                    type: 'knowledge_point',
+                    selectedText: '二次函数',
+                    supplementContent: '二次函数是数学中重要的函数类型，广泛应用于物理、工程等领域。',
+                    knowledgePointName: '二次函数基础',
+                    textPosition: {
+                        startIndex: 0,
+                        endIndex: 4,
+                        context: '二次函数是形如 f(x) = ax² + bx + c'
+                    }
+                };
+                
+                console.log('发送补充内容请求:', requestBody);
+                
+                const response = await fetch('/api/user-supplements', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                console.log('响应状态:', response.status);
+                const data = await response.json();
+                console.log('响应数据:', data);
+                
+                if (data.success) {
+                    resultDiv.textContent = `✅ 知识点补充创建成功！\n\n响应: ${JSON.stringify(data, null, 2)}`;
+                    resultDiv.className = 'result success';
+                } else {
+                    resultDiv.textContent = `⚠️ API返回错误\n\n响应: ${JSON.stringify(data, null, 2)}`;
+                    resultDiv.className = 'result error';
+                }
+                
+            } catch (error) {
+                console.error('创建补充内容失败:', error);
+                resultDiv.textContent = `❌ 请求失败\n\n错误: ${error.message}`;
+                resultDiv.className = 'result error';
+            }
+        }
+        
+        async function testCreateAnswerSupplement() {
+            const resultDiv = document.getElementById('supplementResult');
+            resultDiv.textContent = '正在测试创建答案补充...';
+            resultDiv.className = 'result';
+            
+            try {
+                const requestBody = {
+                    questionId: '507f1f77bcf86cd799439011',
+                    type: 'answer_supplement',
+                    selectedText: 'a > 0 时开口向上',
+                    supplementContent: '当二次项系数a为正数时，抛物线开口向上，函数有最小值。',
+                    textPosition: {
+                        startIndex: 50,
+                        endIndex: 60,
+                        context: '当 a > 0 时开口向上，当 a < 0 时开口向下'
+                    }
+                };
+                
+                const response = await fetch('/api/user-supplements', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.textContent = `✅ 答案补充创建成功！\n\n响应: ${JSON.stringify(data, null, 2)}`;
+                    resultDiv.className = 'result success';
+                } else {
+                    resultDiv.textContent = `⚠️ API返回错误\n\n响应: ${JSON.stringify(data, null, 2)}`;
+                    resultDiv.className = 'result error';
+                }
+                
+            } catch (error) {
+                resultDiv.textContent = `❌ 请求失败\n\n错误: ${error.message}`;
+                resultDiv.className = 'result error';
+            }
+        }
+        
+        async function testGetSupplements() {
+            const resultDiv = document.getElementById('getResult');
+            resultDiv.textContent = '正在测试获取补充内容...';
+            resultDiv.className = 'result';
+            
+            try {
+                const questionId = '507f1f77bcf86cd799439011';
+                const response = await fetch(`/api/user-supplements/question/${questionId}`);
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.textContent = `✅ 获取补充内容成功！\n\n响应: ${JSON.stringify(data, null, 2)}`;
+                    resultDiv.className = 'result success';
+                } else {
+                    resultDiv.textContent = `⚠️ API返回错误\n\n响应: ${JSON.stringify(data, null, 2)}`;
+                    resultDiv.className = 'result error';
+                }
+                
+            } catch (error) {
+                resultDiv.textContent = `❌ 请求失败\n\n错误: ${error.message}`;
+                resultDiv.className = 'result error';
+            }
+        }
+    </script>
+</body>
+</html>

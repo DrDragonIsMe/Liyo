@@ -1,11 +1,70 @@
 import express from 'express'
 import { body, query, validationResult } from 'express-validator'
+import multer from 'multer'
+import path from 'path'
+import fs from 'fs/promises'
 import { asyncHandler } from '../middleware/errorHandler.js'
+import { authMiddleware } from '../middleware/auth.js'
 import Question from '../models/Question.js'
 import Paper from '../models/Paper.js'
 import StudyRecord from '../models/StudyRecord.js'
+import UserSupplement from '../models/UserSupplement.js'
+import ocrService from '../services/ocrService.js'
 
 const router = express.Router()
+
+// 配置图片上传
+const upload = multer({
+  dest: process.env.UPLOAD_PATH || './uploads',
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml']
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true)
+    } else {
+      cb(new Error('只支持 JPG、PNG、WEBP、SVG 格式的图片'), false)
+    }
+  }
+})
+
+// @desc    获取题目统计信息
+// @route   GET /api/questions/stats
+// @access  Private
+router.get('/stats', authMiddleware, asyncHandler(async (req, res) => {
+  try {
+    // 获取总题目数
+    const totalQuestions = await Question.countDocuments({ isActive: true })
+    
+    // 获取各学科题目数
+    const subjectStats = await Question.aggregate([
+      { $match: { isActive: true } },
+      { $group: { _id: '$subject', count: { $sum: 1 } } },
+      { $sort: { _id: 1 } }
+    ])
+    
+    // 转换为对象格式
+    const subjectCounts = {}
+    subjectStats.forEach(stat => {
+      subjectCounts[stat._id] = stat.count
+    })
+    
+    res.json({
+      success: true,
+      data: {
+        totalQuestions,
+        subjectCounts
+      }
+    })
+  } catch (error) {
+    console.error('获取题目统计失败:', error)
+    res.status(500).json({
+      success: false,
+      error: '获取题目统计失败'
+    })
+  }
+}))
 
 // @desc    获取题目列表
 // @route   GET /api/questions
@@ -47,7 +106,7 @@ router.get('/', [
 
   const page = parseInt(req.query.page) || 1
   const limit = parseInt(req.query.limit) || 20
-  const { paper, type, subject, grade, difficulty, search } = req.query
+  const { paper, type, subject, grade, difficulty, search, random } = req.query
 
   // 构建查询条件
   const query = { isActive: true }
@@ -76,24 +135,87 @@ router.get('/', [
     ]
   }
 
-  const skip = (page - 1) * limit
-
-  const [questions, total] = await Promise.all([
-    Question.find(query)
-      .populate('paper', 'title subject grade')
-      .sort({ questionNumber: 1 })
-      .skip(skip)
-      .limit(limit),
-    Question.countDocuments(query)
-  ])
+  let questions, total
+  
+  if (random === 'true') {
+    // 随机获取题目
+    const pipeline = [
+      { $match: query },
+      { $sample: { size: limit } }
+    ]
+    
+    const [randomQuestions, totalCount] = await Promise.all([
+      Question.aggregate(pipeline),
+      Question.countDocuments(query)
+    ])
+    
+    // 手动populate paper字段
+    questions = await Question.populate(randomQuestions, {
+      path: 'paper',
+      select: 'title subject grade'
+    })
+    
+    total = totalCount
+  } else {
+    // 常规分页查询
+    const skip = (page - 1) * limit
+    
+    const [regularQuestions, totalCount] = await Promise.all([
+      Question.find(query)
+        .populate('paper', 'title subject grade')
+        .sort({ questionNumber: 1 })
+        .skip(skip)
+        .limit(limit),
+      Question.countDocuments(query)
+    ])
+    
+    questions = regularQuestions
+    total = totalCount
+  }
 
   res.json({
     success: true,
     data: {
-      questions: questions.map(question => ({
-        ...question.getSummary(),
-        paper: question.paper
-      })),
+      questions: questions.map(question => {
+        // 处理聚合查询返回的普通对象和Mongoose文档
+        if (question.getSummary) {
+          return {
+            ...question.getSummary(),
+            paper: question.paper
+          }
+        } else {
+          // 聚合查询返回的普通对象 - 确保包含完整的图形数据
+          return {
+            id: question._id,
+            questionNumber: question.questionNumber,
+            type: question.type,
+            content: question.content,
+            subject: question.subject,
+            difficulty: question.difficulty,
+            score: question.score,
+            estimatedTime: question.estimatedTime,
+            options: question.options,
+            correctAnswer: question.correctAnswer,
+            explanation: question.explanation,
+            knowledgePoints: question.knowledgePoints,
+            tags: question.tags,
+            chapter: question.chapter,
+            section: question.section,
+            source: question.source,
+            // 确保包含所有图形相关字段
+            imageData: question.imageData,
+            mimeType: question.mimeType,
+            svgData: question.svgData,
+            figureProperties: question.figureProperties,
+            hasGeometryFigure: question.hasGeometryFigure,
+            ocrText: question.ocrText,
+            statistics: question.statistics,
+            paper: question.paper,
+            createdAt: question.createdAt,
+            updatedAt: question.updatedAt
+          }
+        }
+      }),
       pagination: {
         current: page,
         pages: Math.ceil(total / limit),
@@ -510,6 +632,184 @@ router.post('/:id/answer', [
   })
 }))
 
+// @desc    处理粘贴的图片（直接存储，不进行OCR识别）
+// @route   POST /api/questions/parse-image
+// @access  Private
+router.post('/parse-image', authMiddleware, upload.single('image'), [  
+  body('subject')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 20 })
+    .withMessage('科目名称必须在1-20个字符之间')
+], asyncHandler(async (req, res) => {
+  // 检查验证错误
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      error: errors.array()[0].msg
+    })
+  }
+
+  if (!req.file) {
+    return res.status(400).json({
+      success: false,
+      error: '请上传图片文件'
+    })
+  }
+
+  const { subject } = req.body
+  const filePath = req.file.path
+
+  try {
+    console.log('开始处理图片:', filePath)
+    
+    // 读取图片文件并转换为base64
+    const imageBuffer = await fs.readFile(filePath)
+    const imageBase64 = imageBuffer.toString('base64')
+    const mimeType = req.file.mimetype
+    
+    console.log('图片处理成功，大小:', Math.round(imageBuffer.length / 1024), 'KB')
+
+    // 使用AI分析图片内容并生成知识点
+    let analyzedContent = '图片题目'
+    let knowledgePoints = []
+    let ocrText = ''
+    let questionType = 'image'
+    let difficulty = 'medium'
+    let correctAnswer = null
+    
+    try {
+      // 调用AI服务分析图片内容
+      const aiService = await import('../services/aiService.js')
+      const analysisResult = await aiService.default.analyzeImageContent(imageBase64, subject)
+      
+      if (analysisResult.success) {
+        analyzedContent = analysisResult.content || '图片题目'
+        knowledgePoints = analysisResult.knowledgePoints || []
+        ocrText = analysisResult.ocrText || ''
+        questionType = analysisResult.questionType || 'image'
+        difficulty = analysisResult.difficulty || 'medium'
+        console.log('AI分析成功，识别到知识点:', knowledgePoints)
+        console.log('OCR识别文本:', ocrText)
+        
+        // 如果识别出具体题目内容，尝试生成答案
+        if (ocrText && ocrText.length > 10 && questionType !== '图片题') {
+          try {
+            console.log('检测到具体题目，开始生成答案...')
+            const answerResult = await aiService.default.generateAnswer(ocrText, subject, questionType)
+            if (answerResult.success && answerResult.answer) {
+              correctAnswer = answerResult.answer
+              console.log('AI生成答案成功:', correctAnswer)
+            }
+          } catch (answerError) {
+            console.error('AI生成答案失败:', answerError)
+          }
+        }
+      }
+    } catch (aiError) {
+      console.error('AI分析图片失败:', aiError)
+      // 继续使用默认值
+    }
+
+    // 根据题目类型决定是否需要correctAnswer
+    const questionData = {
+      content: analyzedContent,
+      ocrText: ocrText, // 添加OCR识别的文字内容
+      subject: subject,
+      difficulty: difficulty,
+      type: '图片题', // 明确设置为图片题类型
+      knowledgePoints: knowledgePoints,
+      imageData: imageBase64,
+      mimeType: mimeType,
+      source: 'image_upload',
+      createdBy: req.user?.id || null,
+      isActive: true,
+      ocrExtracted: true // 标记为OCR提取的题目
+    }
+    
+    // 如果AI生成了答案且不是纯图片题，添加correctAnswer
+    if (correctAnswer && questionType !== '图片题') {
+      questionData.correctAnswer = correctAnswer
+      questionData.type = questionType // 使用AI识别的具体题目类型
+    }
+    
+    // 自动保存图片题目到数据库
+    const newQuestion = new Question(questionData)
+
+    await newQuestion.save()
+    console.log('图片题目已自动保存到题库，ID:', newQuestion._id)
+
+    // 如果生成了知识点，自动保存到知识点库
+    if (knowledgePoints && knowledgePoints.length > 0) {
+      try {
+        const KnowledgePoint = await import('../models/KnowledgePoint.js')
+        for (const knowledgePointName of knowledgePoints) {
+          if (knowledgePointName && knowledgePointName.trim()) {
+            await KnowledgePoint.default.findOrCreate(knowledgePointName.trim(), subject, {
+              definition: `${knowledgePointName}相关知识点`,
+              source: 'image_analysis',
+              relatedConcepts: knowledgePoints.filter(kp => kp !== knowledgePointName)
+            })
+          }
+        }
+        console.log('图片题目知识点已自动保存到知识点库')
+      } catch (kpError) {
+        console.error('保存知识点失败:', kpError)
+        // 不影响主要功能，继续返回结果
+      }
+    }
+
+    // 创建返回的题目对象
+    const question = {
+      _id: newQuestion._id,
+      content: newQuestion.content,
+      subject: newQuestion.subject,
+      difficulty: newQuestion.difficulty,
+      type: newQuestion.type,
+      knowledgePoints: newQuestion.knowledgePoints,
+      imageData: imageBase64,
+      mimeType: mimeType,
+      createdAt: newQuestion.createdAt
+    }
+
+    // 删除临时文件
+    try {
+      await fs.unlink(filePath)
+    } catch (unlinkError) {
+      console.error('删除临时文件失败:', unlinkError)
+    }
+
+    res.json({
+      success: true,
+      question: question,
+      subjectMatch: true, // 图片题目暂时默认匹配当前科目
+      suggestedSubject: subject // 返回当前设置的科目
+    })
+
+  } catch (error) {
+    console.error('图片处理失败:', error)
+    console.error('错误堆栈:', error.stack)
+    console.error('错误详情:', {
+      message: error.message,
+      name: error.name,
+      code: error.code
+    })
+    
+    // 删除临时文件
+    try {
+      await fs.unlink(filePath)
+    } catch (unlinkError) {
+      console.error('删除临时文件失败:', unlinkError)
+    }
+
+    res.status(500).json({
+      success: false,
+      error: `图片处理失败: ${error.message || '请重试'}`
+    })
+  }
+}))
+
 // @desc    获取题目统计信息
 // @route   GET /api/questions/:id/stats
 // @access  Private
@@ -542,6 +842,251 @@ router.get('/:id/stats', asyncHandler(async (req, res) => {
         averageTime: question.statistics.averageTime,
         difficultyRating: question.statistics.difficultyRating
       }
+    }
+  })
+}))
+
+// @desc    获取题目的用户补充内容
+// @route   GET /api/questions/:id/supplements
+// @access  Private
+router.get('/:id/supplements', authMiddleware, asyncHandler(async (req, res) => {
+  const questionId = req.params.id
+  
+  // 检查题目是否存在
+  const question = await Question.findById(questionId)
+  if (!question) {
+    return res.status(404).json({
+      success: false,
+      error: '题目不存在'
+    })
+  }
+  
+  // 获取该题目的所有用户补充内容
+  const supplements = await UserSupplement.find({ 
+    question: questionId,
+    isActive: true 
+  })
+    .populate('createdBy', 'username')
+    .sort({ createdAt: -1 })
+  
+  res.json({
+    success: true,
+    data: { supplements }
+  })
+}))
+
+// @desc    创建用户补充内容
+// @route   POST /api/questions/:id/supplements
+// @access  Private
+router.post('/:id/supplements', authMiddleware, [
+  body('type')
+    .isIn(['knowledge_point', 'answer_supplement'])
+    .withMessage('补充类型必须是knowledge_point或answer_supplement'),
+  body('selectedText')
+    .trim()
+    .isLength({ min: 1 })
+    .withMessage('选中文本不能为空'),
+  body('supplementContent')
+    .trim()
+    .isLength({ min: 1 })
+    .withMessage('补充内容不能为空'),
+  body('textPosition.startIndex')
+    .isInt({ min: 0 })
+    .withMessage('文本起始位置必须是非负整数'),
+  body('textPosition.endIndex')
+    .isInt({ min: 0 })
+    .withMessage('文本结束位置必须是非负整数'),
+  body('textPosition.context')
+    .trim()
+    .isLength({ min: 1 })
+    .withMessage('文本上下文不能为空')
+], asyncHandler(async (req, res) => {
+  // 检查验证错误
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      error: errors.array()[0].msg
+    })
+  }
+  
+  const questionId = req.params.id
+  const {
+    type,
+    selectedText,
+    supplementContent,
+    knowledgePointName,
+    textPosition
+  } = req.body
+  
+  // 检查题目是否存在
+  const question = await Question.findById(questionId)
+  if (!question) {
+    return res.status(404).json({
+      success: false,
+      error: '题目不存在'
+    })
+  }
+  
+  // 创建用户补充内容
+  const supplement = new UserSupplement({
+    question: questionId,
+    type,
+    selectedText,
+    supplementContent,
+    knowledgePointName,
+    textPosition,
+    createdBy: req.user.id
+  })
+  
+  await supplement.save()
+  await supplement.populate('createdBy', 'username')
+  
+  res.status(201).json({
+    success: true,
+    data: { supplement }
+  })
+}))
+
+// @desc    更新用户补充内容
+// @route   PUT /api/questions/:id/supplements/:supplementId
+// @access  Private
+router.put('/:id/supplements/:supplementId', authMiddleware, [
+  body('supplementContent')
+    .optional()
+    .trim()
+    .isLength({ min: 1 })
+    .withMessage('补充内容不能为空'),
+  body('knowledgePointName')
+    .optional()
+    .trim()
+    .isLength({ min: 1 })
+    .withMessage('知识点名称不能为空')
+], asyncHandler(async (req, res) => {
+  // 检查验证错误
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      error: errors.array()[0].msg
+    })
+  }
+  
+  const { supplementId } = req.params
+  const { supplementContent, knowledgePointName } = req.body
+  
+  // 查找补充内容
+  const supplement = await UserSupplement.findById(supplementId)
+  if (!supplement) {
+    return res.status(404).json({
+      success: false,
+      error: '补充内容不存在'
+    })
+  }
+  
+  // 检查权限（只有创建者可以修改）
+  if (supplement.createdBy.toString() !== req.user.id && req.user.role !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      error: '无权修改该补充内容'
+    })
+  }
+  
+  // 更新补充内容
+  if (supplementContent !== undefined) {
+    supplement.supplementContent = supplementContent
+  }
+  if (knowledgePointName !== undefined) {
+    supplement.knowledgePointName = knowledgePointName
+  }
+  
+  supplement.updatedAt = new Date()
+  await supplement.save()
+  await supplement.populate('createdBy', 'username')
+  
+  res.json({
+    success: true,
+    data: { supplement }
+  })
+}))
+
+// @desc    删除用户补充内容
+// @route   DELETE /api/questions/:id/supplements/:supplementId
+// @access  Private
+router.delete('/:id/supplements/:supplementId', authMiddleware, asyncHandler(async (req, res) => {
+  const { supplementId } = req.params
+  
+  // 查找补充内容
+  const supplement = await UserSupplement.findById(supplementId)
+  if (!supplement) {
+    return res.status(404).json({
+      success: false,
+      error: '补充内容不存在'
+    })
+  }
+  
+  // 检查权限（只有创建者可以删除）
+  if (supplement.createdBy.toString() !== req.user.id && req.user.role !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      error: '无权删除该补充内容'
+    })
+  }
+  
+  // 软删除
+  supplement.isActive = false
+  supplement.updatedAt = new Date()
+  await supplement.save()
+  
+  res.json({
+    success: true,
+    message: '补充内容已删除'
+  })
+}))
+
+// @desc    为补充内容评分
+// @route   POST /api/questions/:id/supplements/:supplementId/rate
+// @access  Private
+router.post('/:id/supplements/:supplementId/rate', authMiddleware, [
+  body('rating')
+    .isInt({ min: 1, max: 5 })
+    .withMessage('评分必须是1-5之间的整数')
+], asyncHandler(async (req, res) => {
+  // 检查验证错误
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      error: errors.array()[0].msg
+    })
+  }
+  
+  const { supplementId } = req.params
+  const { rating } = req.body
+  
+  // 查找补充内容
+  const supplement = await UserSupplement.findById(supplementId)
+  if (!supplement) {
+    return res.status(404).json({
+      success: false,
+      error: '补充内容不存在'
+    })
+  }
+  
+  // 更新评分（简单实现，实际应该记录每个用户的评分）
+  const newRatingCount = supplement.ratingCount + 1
+  const newRating = ((supplement.rating * supplement.ratingCount) + rating) / newRatingCount
+  
+  supplement.rating = newRating
+  supplement.ratingCount = newRatingCount
+  supplement.updatedAt = new Date()
+  await supplement.save()
+  
+  res.json({
+    success: true,
+    data: { 
+      rating: supplement.rating,
+      ratingCount: supplement.ratingCount
     }
   })
 }))

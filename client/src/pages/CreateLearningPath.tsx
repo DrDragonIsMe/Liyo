@@ -8,7 +8,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Checkbox } from '../components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-
+import { useSubjectStore } from '../store/subjectStore';
 import { Progress } from '../components/ui/progress';
 import { 
   ArrowLeft, 
@@ -60,6 +60,7 @@ const CreateLearningPath = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const preselectedSubject = searchParams.get('subject');
+  const { currentSubject } = useSubjectStore();
   
   const [step, setStep] = useState(1);
   const [loading] = useState(false);
@@ -68,9 +69,9 @@ const CreateLearningPath = () => {
   const [generationProgress, setGenerationProgress] = useState(0);
   
   const [formData, setFormData] = useState<FormDataType>({
-    title: '',
-    description: '',
-    subjects: preselectedSubject ? [preselectedSubject] : [],
+    title: currentSubject ? `${currentSubject.name}学习路径` : '',
+    description: currentSubject ? `专为${currentSubject.name}学科设计的个性化学习计划` : '',
+    subjects: currentSubject ? [currentSubject.id] : (preselectedSubject ? [preselectedSubject] : []),
     targetLevel: 'intermediate', // beginner, intermediate, advanced
     studyTimePerDay: 60, // 分钟
     totalDuration: 30, // 天数
@@ -252,30 +253,44 @@ const CreateLearningPath = () => {
 
             <div>
               <Label className="text-base font-medium mb-4 block">选择学科 *</Label>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {subjects.map((subject) => (
-                  <div
-                    key={subject.code}
-                    className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                      formData.subjects.includes(subject.code)
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                    onClick={() => handleArrayToggle('subjects', subject.code)}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        checked={formData.subjects.includes(subject.code)}
-                        onChange={() => handleArrayToggle('subjects', subject.code)}
-                      />
-                      <div>
-                        <p className="font-medium">{subject.name}</p>
-                        <p className="text-sm text-gray-600">{subject.totalUnits} 个单元</p>
-                      </div>
+              {currentSubject ? (
+                <div className="p-4 border border-blue-500 bg-blue-50 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <span className="text-blue-600 text-lg">{currentSubject.icon}</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-blue-900">{currentSubject.name}</p>
+                      <p className="text-sm text-blue-700">当前选择的学科</p>
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {subjects.map((subject) => (
+                    <div
+                      key={subject.code}
+                      className={`p-4 border rounded-lg cursor-pointer transition-all ${
+                        formData.subjects.includes(subject.code)
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                      onClick={() => handleArrayToggle('subjects', subject.code)}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          checked={formData.subjects.includes(subject.code)}
+                          onChange={() => handleArrayToggle('subjects', subject.code)}
+                        />
+                        <div>
+                          <p className="font-medium">{subject.name}</p>
+                          <p className="text-sm text-gray-600">{subject.totalUnits} 个单元</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

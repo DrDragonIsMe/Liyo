@@ -94,7 +94,7 @@ router.post('/process', upload.single('file'), [
       uploadedBy: req.user.id
     }
 
-    // 处理OCR
+    // 处理图片（不进行OCR识别）
     const result = await ocrService.processPaper(filePath, paperInfo)
 
     if (!result.success) {
@@ -111,15 +111,17 @@ router.post('/process', upload.single('file'), [
       })
     }
 
+    // 将图片数据转换为base64存储
+    const imageBase64 = result.imageBuffer.toString('base64')
+    
     res.json({
       success: true,
       data: {
-        extractedText: result.extractedText,
-        questions: result.questions,
-        totalQuestions: result.totalQuestions,
-        totalScore: result.totalScore,
+        imageData: imageBase64,
+        imageInfo: result.imageInfo,
         filePath: filePath,
-        paperInfo
+        paperInfo,
+        message: '图片已成功处理，可直接用于AI交互'
       }
     })
   } catch (error) {
@@ -253,13 +255,12 @@ router.post('/create-paper', [
     .trim()
     .isLength({ min: 1, max: 10 })
     .withMessage('年级必须在1-10个字符之间'),
-  body('questions')
-    .isArray({ min: 1 })
-    .withMessage('至少需要一道题目'),
-  body('extractedText')
-    .optional()
+  body('imageData')
     .isString()
-    .withMessage('提取文本必须是字符串'),
+    .withMessage('图片数据必须是字符串'),
+  body('imageInfo')
+    .isObject()
+    .withMessage('图片信息必须是对象格式'),
   body('filePath')
     .optional()
     .isString()
@@ -281,17 +282,14 @@ router.post('/create-paper', [
     examType = '练习',
     difficulty = 'medium',
     timeLimit,
-    questions,
-    extractedText,
+    imageData,
+    imageInfo,
     filePath,
     isPublic = false
   } = req.body
 
   try {
-    // 计算总分
-    const totalScore = questions.reduce((sum, q) => sum + (q.score || 0), 0)
-
-    // 创建试卷
+    // 创建试卷（存储图片数据）
     const paper = await Paper.create({
       title,
       subject,
@@ -299,36 +297,17 @@ router.post('/create-paper', [
       examType,
       difficulty,
       timeLimit,
-      totalScore,
+      totalScore: 0, // 暂时设为0，因为没有具体题目
       uploadedBy: req.user.id,
       originalFile: filePath,
-      extractedText,
+      imageData: imageData, // 存储base64图片数据
+      imageInfo: imageInfo, // 存储图片元信息
       isPublic,
-      status: 'active'
+      status: 'active',
+      processingType: 'image' // 标记为图片处理模式
     })
 
-    // 创建题目
-    const createdQuestions = []
-    for (let i = 0; i < questions.length; i++) {
-      const questionData = questions[i]
-      const question = await Question.create({
-        paper: paper._id,
-        questionNumber: i + 1,
-        type: questionData.type,
-        content: questionData.content,
-        options: questionData.options,
-        correctAnswer: questionData.correctAnswer,
-        explanation: questionData.explanation,
-        score: questionData.score || 1,
-        difficulty: questionData.difficulty || 'medium',
-        knowledgePoints: questionData.knowledgePoints || []
-      })
-      createdQuestions.push(question)
-    }
-
-    // 更新试卷的题目列表
-    paper.questions = createdQuestions.map(q => q._id)
-    await paper.save()
+    console.log(`试卷创建成功: ${paper._id}, 图片大小: ${Math.round(imageData.length / 1024)}KB`)
 
     res.status(201).json({
       success: true,
@@ -340,15 +319,10 @@ router.post('/create-paper', [
           grade: paper.grade,
           examType: paper.examType,
           totalScore: paper.totalScore,
-          totalQuestions: createdQuestions.length
+          processingType: paper.processingType,
+          imageInfo: paper.imageInfo
         },
-        questions: createdQuestions.map(q => ({
-          id: q._id,
-          questionNumber: q.questionNumber,
-          type: q.type,
-          content: q.content,
-          score: q.score
-        }))
+        message: '试卷创建成功，图片已存储，可直接用于AI交互'
       }
     })
   } catch (error) {

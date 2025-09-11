@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI助手数学公式渲染测试</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+        .test-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #007acc;
+            padding-bottom: 5px;
+        }
+        .chat-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .message {
+            margin: 15px 0;
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 80%;
+        }
+        .user-message {
+            background: #007bff;
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+        .ai-message {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            margin-right: auto;
+        }
+        .system-message {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            text-align: center;
+        }
+        .input-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            margin: 20px 0;
+        }
+        .input-group {
+            margin: 15px 0;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        .input-group input, .input-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .input-group textarea {
+            height: 80px;
+            resize: vertical;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .loading { background: #d1ecf1; color: #0c5460; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .math-examples {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            border-left: 4px solid #007bff;
+        }
+        .math-examples h4 {
+            margin-top: 0;
+            color: #0056b3;
+        }
+        .example-item {
+            margin: 10px 0;
+            padding: 8px;
+            background: white;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧮 AI助手数学公式渲染测试</h1>
+    <p>测试AI助手返回的数学公式是否能通过MarkdownRenderer正确渲染。</p>
+    
+    <div class="input-section">
+        <div class="test-title">💬 AI聊天测试</div>
+        
+        <div class="input-group">
+            <label for="chatMessage">聊天消息:</label>
+            <input type="text" id="chatMessage" placeholder="输入包含数学的问题..." value="请解释二次函数 f(x) = ax² + bx + c 的顶点公式">
+        </div>
+        
+        <div class="input-group">
+            <label for="questionContext">题目上下文 (JSON格式，可选):</label>
+            <textarea id="questionContext" placeholder="输入题目上下文...">{"subject":"数学","difficulty":"medium","content":"求二次函数的顶点坐标","knowledgePoints":["二次函数","顶点公式"]}</textarea>
+        </div>
+        
+        <button onclick="testAIChat()" id="sendBtn">发送消息</button>
+        <button onclick="clearChat()">清空聊天</button>
+        
+        <div id="status" class="status" style="display: none;"></div>
+    </div>
+    
+    <div class="math-examples">
+        <h4>📝 常见数学公式示例</h4>
+        <p>AI助手可能返回的数学公式格式：</p>
+        <div class="example-item">行内公式: $f(x) = ax^2 + bx + c$</div>
+        <div class="example-item">块级公式: $$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$</div>
+        <div class="example-item">顶点公式: $x_v = -\\frac{b}{2a}$, $y_v = f(x_v)$</div>
+        <div class="example-item">判别式: $\\Delta = b^2 - 4ac$</div>
+    </div>
+    
+    <div class="chat-container">
+        <div class="test-title">💬 聊天记录</div>
+        <div id="chatMessages">
+            <div class="message system-message">
+                AI助手准备就绪，有问题随时问我！
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 模拟MarkdownRenderer的预处理函数
+        function preprocessLatex(text) {
+            return text
+                // 清理中文标点符号
+                .replace(/，/g, ',')
+                .replace(/。/g, '.')
+                .replace(/；/g, ';')
+                .replace(/：/g, ':')
+                .replace(/？/g, '?')
+                .replace(/！/g, '!')
+                .replace(/（/g, '(')
+                .replace(/）/g, ')')
+                .replace(/【/g, '[')
+                .replace(/】/g, ']')
+                .replace(/「/g, '"')
+                .replace(/」/g, '"')
+                .replace(/『/g, '"')
+                .replace(/』/g, '"')
+                // 处理双反斜杠转义问题
+                .replace(/\\\\frac/g, '\\frac')
+                .replace(/\\\\sqrt/g, '\\sqrt')
+                .replace(/\\\\pm/g, '\\pm')
+                .replace(/\\\\times/g, '\\times')
+                .replace(/\\\\div/g, '\\div')
+                .replace(/\\\\cdot/g, '\\cdot')
+                .replace(/\\\\sum/g, '\\sum')
+                .replace(/\\\\int/g, '\\int')
+                .replace(/\\\\lim/g, '\\lim')
+                .replace(/\\\\sin/g, '\\sin')
+                .replace(/\\\\cos/g, '\\cos')
+                .replace(/\\\\tan/g, '\\tan')
+                .replace(/\\\\log/g, '\\log')
+                .replace(/\\\\ln/g, '\\ln')
+                .replace(/\\\\alpha/g, '\\alpha')
+                .replace(/\\\\beta/g, '\\beta')
+                .replace(/\\\\gamma/g, '\\gamma')
+                .replace(/\\\\delta/g, '\\delta')
+                .replace(/\\\\pi/g, '\\pi')
+                .replace(/\\\\theta/g, '\\theta')
+                .replace(/\\\\infty/g, '\\infty')
+                .replace(/\\\\leq/g, '\\leq')
+                .replace(/\\\\geq/g, '\\geq')
+                .replace(/\\\\neq/g, '\\neq')
+                .replace(/\\\\approx/g, '\\approx')
+                .replace(/\\\\equiv/g, '\\equiv')
+                .replace(/\\\\begin/g, '\\begin')
+                .replace(/\\\\end/g, '\\end')
+                .replace(/\\\\left/g, '\\left')
+                .replace(/\\\\right/g, '\\right')
+                // 处理常见的Unicode数学符号
+                .replace(/×/g, '\\times')
+                .replace(/÷/g, '\\div')
+                .replace(/±/g, '\\pm')
+                .replace(/≤/g, '\\leq')
+                .replace(/≥/g, '\\geq')
+                .replace(/≠/g, '\\neq')
+                .replace(/≈/g, '\\approx')
+                .replace(/∞/g, '\\infty')
+                .replace(/π/g, '\\pi')
+                .replace(/α/g, '\\alpha')
+                .replace(/β/g, '\\beta')
+                .replace(/γ/g, '\\gamma')
+                .replace(/δ/g, '\\delta')
+                .replace(/θ/g, '\\theta')
+                // 处理上下标的Unicode字符
+                .replace(/²/g, '^2')
+                .replace(/³/g, '^3')
+                .replace(/¹/g, '^1')
+                .replace(/₁/g, '_1')
+                .replace(/₂/g, '_2')
+                .replace(/₃/g, '_3');
+        }
+        
+        function addMessage(type, content) {
+            const chatContainer = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}-message`;
+            
+            if (type === 'user') {
+                messageDiv.innerHTML = `<strong>用户:</strong><br>${content}`;
+            } else if (type === 'ai') {
+                // 模拟MarkdownRenderer处理
+                const processedContent = preprocessLatex(content);
+                messageDiv.innerHTML = `<strong>AI助手:</strong><br><div id="ai-content-${Date.now()}">${processedContent}</div>`;
+                
+                // 渲染数学公式
+                setTimeout(() => {
+                    const contentDiv = messageDiv.querySelector('[id^="ai-content-"]');
+                    if (contentDiv) {
+                        renderMathInElement(contentDiv, {
+                            delimiters: [
+                                {left: '$$', right: '$$', display: true},
+                                {left: '$', right: '$', display: false}
+                            ],
+                            throwOnError: false,
+                            errorCallback: function(msg, err) {
+                                console.error('KaTeX渲染错误:', msg, err);
+                                // 显示错误信息
+                                const errorSpan = document.createElement('span');
+                                errorSpan.style.background = '#f8d7da';
+                                errorSpan.style.color = '#721c24';
+                                errorSpan.style.padding = '2px 6px';
+                                errorSpan.style.borderRadius = '4px';
+                                errorSpan.style.fontSize = '12px';
+                                errorSpan.textContent = `LaTeX错误: ${msg}`;
+                                contentDiv.appendChild(document.createElement('br'));
+                                contentDiv.appendChild(errorSpan);
+                            }
+                        });
+                    }
+                }, 100);
+            } else {
+                messageDiv.innerHTML = `<strong>系统:</strong><br>${content}`;
+            }
+            
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        async function testAIChat() {
+            const message = document.getElementById('chatMessage').value.trim();
+            const contextText = document.getElementById('questionContext').value.trim();
+            const statusDiv = document.getElementById('status');
+            const sendBtn = document.getElementById('sendBtn');
+            
+            if (!message) {
+                alert('请输入聊天消息');
+                return;
+            }
+            
+            // 显示状态
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'status loading';
+            statusDiv.textContent = '🤖 AI助手正在思考...';
+            sendBtn.disabled = true;
+            
+            // 添加用户消息
+            addMessage('user', message);
+            
+            try {
+                let requestBody = { message };
+                
+                // 添加题目上下文（如果有）
+                if (contextText) {
+                    try {
+                        requestBody.questionContext = JSON.parse(contextText);
+                    } catch (e) {
+                        console.warn('题目上下文JSON解析失败，忽略:', e);
+                    }
+                }
+                
+                console.log('发送AI聊天请求:', requestBody);
+                
+                const response = await fetch('/api/ai/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                console.log('AI聊天响应状态:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+                
+                const data = await response.json();
+                console.log('AI聊天响应数据:', data);
+                
+                if (data.success && data.response) {
+                    // 添加AI回复
+                    addMessage('ai', data.response);
+                    
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = '✅ AI回复成功，数学公式已渲染';
+                    
+                    // 清空输入框
+                    document.getElementById('chatMessage').value = '';
+                } else {
+                    throw new Error(data.error || 'AI响应格式错误');
+                }
+                
+            } catch (error) {
+                console.error('AI聊天失败:', error);
+                addMessage('system', `❌ 错误: ${error.message}`);
+                
+                statusDiv.className = 'status error';
+                statusDiv.textContent = `❌ AI聊天失败: ${error.message}`;
+            } finally {
+                sendBtn.disabled = false;
+                
+                // 3秒后隐藏状态
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 3000);
+            }
+        }
+        
+        function clearChat() {
+            const chatContainer = document.getElementById('chatMessages');
+            chatContainer.innerHTML = `
+                <div class="message system-message">
+                    AI助手准备就绪，有问题随时问我！
+                </div>
+            `;
+        }
+        
+        // 回车发送消息
+        document.getElementById('chatMessage').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                testAIChat();
+            }
+        });
+        
+        // 页面加载完成后渲染示例公式
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                renderMathInElement(document.body, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false}
+                    ],
+                    throwOnError: false
+                });
+            }, 100);
+        });
+    </script>
+</body>
+</html>

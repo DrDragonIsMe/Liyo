@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MarkdownRenderer LaTeX测试</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: #f9fafb;
+        }
+        .test-title {
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        .original {
+            background: #fef3c7;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .rendered {
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #d1d5db;
+        }
+        .error {
+            color: #dc2626;
+            background: #fef2f2;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>MarkdownRenderer LaTeX公式渲染测试</h1>
+    <p>测试MarkdownRenderer组件处理知识点中LaTeX公式的能力</p>
+    
+    <div class="test-section">
+        <div class="test-title">1. 配方法知识点测试</div>
+        <div class="original">原始内容：配方法是将二次方程 $ax^2 + bx + c = 0$ 转化为 $(x + m)^2 = n$ 的形式。\n\n关键步骤：\n1. 移项：$x^2 + \frac{b}{a}x = -\frac{c}{a}$\n2. 配方：$x^2 + \frac{b}{a}x + \left(\frac{b}{2a}\right)^2 = -\frac{c}{a} + \left(\frac{b}{2a}\right)^2$\n3. 化简：$\left(x + \frac{b}{2a}\right)^2 = \frac{b^2 - 4ac}{4a^2}$</div>
+        <div class="rendered" id="test1"></div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">2. 含Unicode符号的知识点测试</div>
+        <div class="original">原始内容：积分的基本公式：∫x²dx = ⅓x³ + C，其中C为积分常数。\n\n对于多项式 $2x³ + 3x² - x + 1$，其积分为：\n$$∫(2x³ + 3x² - x + 1)dx = ½x⁴ + x³ - ½x² + x + C$$</div>
+        <div class="rendered" id="test2"></div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">3. 混合Markdown和LaTeX测试</div>
+        <div class="original">原始内容：## 二次函数的性质\n\n二次函数 $f(x) = ax^2 + bx + c$ 具有以下性质：\n\n- **对称轴**：$x = -\frac{b}{2a}$\n- **顶点坐标**：$\left(-\frac{b}{2a}, f\left(-\frac{b}{2a}\right)\right)$\n- **判别式**：$\Delta = b^2 - 4ac$\n\n当 $\Delta > 0$ 时，函数与x轴有两个交点。</div>
+        <div class="rendered" id="test3"></div>
+    </div>
+    
+    <div class="test-section">
+        <div class="test-title">4. 实际API响应测试</div>
+        <div class="original">模拟知识点API响应</div>
+        <div class="rendered" id="test4"></div>
+    </div>
+
+    <script>
+        // Unicode数学符号转LaTeX的映射
+        function preprocessLatex(text) {
+            return text
+                // 积分符号
+                .replace(/∫/g, '\\int')
+                // 上标数字
+                .replace(/²/g, '^2')
+                .replace(/³/g, '^3')
+                .replace(/⁴/g, '^4')
+                // 分数符号
+                .replace(/½/g, '\\frac{1}{2}')
+                .replace(/⅓/g, '\\frac{1}{3}')
+                // 其他符号
+                .replace(/π/g, '\\pi');
+        }
+        
+        // 模拟MarkdownRenderer的预处理逻辑
+        function preprocessContent(text) {
+            const mathPlaceholders = {};
+            let placeholderIndex = 0;
+            
+            // 处理块级公式 $$...$$
+            text = text.replace(/\$\$([^$]+)\$\$/g, (match, formula) => {
+                const placeholder = `__BLOCK_MATH_${placeholderIndex++}__`;
+                mathPlaceholders[placeholder] = preprocessLatex(formula.trim());
+                return placeholder;
+            });
+            
+            // 处理行内公式 $...$
+            text = text.replace(/\$([^$]+)\$/g, (match, formula) => {
+                const placeholder = `__INLINE_MATH_${placeholderIndex++}__`;
+                mathPlaceholders[placeholder] = preprocessLatex(formula.trim());
+                return placeholder;
+            });
+            
+            return { text, mathPlaceholders };
+        }
+        
+        // 渲染测试内容
+        function renderTests() {
+            // 测试1：配方法知识点
+            const test1Content = `配方法是将二次方程 $ax^2 + bx + c = 0$ 转化为 $(x + m)^2 = n$ 的形式。
+
+关键步骤：
+1. 移项：$x^2 + \\frac{b}{a}x = -\\frac{c}{a}$
+2. 配方：$x^2 + \\frac{b}{a}x + \\left(\\frac{b}{2a}\\right)^2 = -\\frac{c}{a} + \\left(\\frac{b}{2a}\\right)^2$
+3. 化简：$\\left(x + \\frac{b}{2a}\\right)^2 = \\frac{b^2 - 4ac}{4a^2}$`;
+            
+            const processed1 = preprocessContent(test1Content);
+            let rendered1 = processed1.text;
+            
+            // 替换占位符为实际的LaTeX
+            Object.keys(processed1.mathPlaceholders).forEach(placeholder => {
+                const formula = processed1.mathPlaceholders[placeholder];
+                if (placeholder.includes('BLOCK_MATH')) {
+                    rendered1 = rendered1.replace(placeholder, `$$${formula}$$`);
+                } else {
+                    rendered1 = rendered1.replace(placeholder, `$${formula}$`);
+                }
+            });
+            
+            document.getElementById('test1').innerHTML = rendered1.replace(/\n/g, '<br>');
+            
+            // 测试2：含Unicode符号
+            const test2Content = `积分的基本公式：∫x²dx = ⅓x³ + C，其中C为积分常数。
+
+对于多项式 $2x³ + 3x² - x + 1$，其积分为：
+$$∫(2x³ + 3x² - x + 1)dx = ½x⁴ + x³ - ½x² + x + C$$`;
+            
+            const processed2 = preprocessContent(test2Content);
+            let rendered2 = processed2.text;
+            
+            Object.keys(processed2.mathPlaceholders).forEach(placeholder => {
+                const formula = processed2.mathPlaceholders[placeholder];
+                if (placeholder.includes('BLOCK_MATH')) {
+                    rendered2 = rendered2.replace(placeholder, `$$${formula}$$`);
+                } else {
+                    rendered2 = rendered2.replace(placeholder, `$${formula}$`);
+                }
+            });
+            
+            document.getElementById('test2').innerHTML = rendered2.replace(/\n/g, '<br>');
+            
+            // 测试3：混合内容
+            const test3Content = `## 二次函数的性质
+
+二次函数 $f(x) = ax^2 + bx + c$ 具有以下性质：
+
+- **对称轴**：$x = -\\frac{b}{2a}$
+- **顶点坐标**：$\\left(-\\frac{b}{2a}, f\\left(-\\frac{b}{2a}\\right)\\right)$
+- **判别式**：$\\Delta = b^2 - 4ac$
+
+当 $\\Delta > 0$ 时，函数与x轴有两个交点。`;
+            
+            const processed3 = preprocessContent(test3Content);
+            let rendered3 = processed3.text;
+            
+            Object.keys(processed3.mathPlaceholders).forEach(placeholder => {
+                const formula = processed3.mathPlaceholders[placeholder];
+                if (placeholder.includes('BLOCK_MATH')) {
+                    rendered3 = rendered3.replace(placeholder, `$$${formula}$$`);
+                } else {
+                    rendered3 = rendered3.replace(placeholder, `$${formula}$`);
+                }
+            });
+            
+            document.getElementById('test3').innerHTML = rendered3.replace(/\n/g, '<br>');
+        }
+        
+        // 测试API响应
+        async function testAPI() {
+            try {
+                const response = await fetch('http://localhost:5001/api/knowledge-points/数学');
+                const data = await response.json();
+                
+                if (data.success && data.knowledgePoints.length > 0) {
+                    const firstPoint = data.knowledgePoints[0];
+                    const processed = preprocessContent(firstPoint.definition || '暂无定义');
+                    let rendered = processed.text;
+                    
+                    Object.keys(processed.mathPlaceholders).forEach(placeholder => {
+                        const formula = processed.mathPlaceholders[placeholder];
+                        if (placeholder.includes('BLOCK_MATH')) {
+                            rendered = rendered.replace(placeholder, `$$${formula}$$`);
+                        } else {
+                            rendered = rendered.replace(placeholder, `$${formula}$`);
+                        }
+                    });
+                    
+                    document.getElementById('test4').innerHTML = `
+                        <h4>${firstPoint.name}</h4>
+                        <div>${rendered.replace(/\n/g, '<br>')}</div>
+                    `;
+                } else {
+                    document.getElementById('test4').innerHTML = '<div class="error">无法获取知识点数据</div>';
+                }
+            } catch (error) {
+                document.getElementById('test4').innerHTML = `<div class="error">API请求失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 渲染LaTeX公式
+        function renderMath() {
+            renderMathInElement(document.body, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false}
+                ],
+                throwOnError: false,
+                errorCallback: function(msg, err) {
+                    console.error('KaTeX渲染错误:', msg, err);
+                }
+            });
+        }
+        
+        // 页面加载完成后执行测试
+        document.addEventListener('DOMContentLoaded', function() {
+            renderTests();
+            testAPI();
+            
+            // 延迟渲染数学公式，确保内容已加载
+            setTimeout(renderMath, 100);
+        });
+    </script>
+</body>
+</html>

@@ -56,6 +56,26 @@ const paperSchema = new mongoose.Schema({
       default: Date.now
     }
   },
+  // 新增字段：图片存储模式
+  processingType: {
+    type: String,
+    enum: ['ocr', 'image'], // ocr: 传统OCR识别模式, image: 直接存储图片模式
+    default: 'ocr'
+  },
+  imageData: {
+    type: String, // base64编码的图片数据
+    default: null
+  },
+  imageInfo: {
+    originalPath: String,
+    size: Number,
+    mimeType: String,
+    processedAt: String
+  },
+  extractedText: {
+    type: String, // OCR识别的文本（兼容旧版本）
+    default: null
+  },
   processedImages: [{
     filename: String,
     path: String,

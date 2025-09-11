@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI功能调试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success {
+            background: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 5px 0;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        .chat-messages {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        .message {
+            margin: 10px 0;
+            padding: 8px;
+            border-radius: 5px;
+        }
+        .user-message {
+            background: #007bff;
+            color: white;
+            text-align: right;
+        }
+        .ai-message {
+            background: #f1f1f1;
+            color: #333;
+        }
+        .system-message {
+            background: #fff3cd;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <h1>AI功能调试页面</h1>
+    
+    <div class="container">
+        <div class="section">
+            <h3>🔐 认证状态检查</h3>
+            <button onclick="checkAuthStatus()">检查登录状态</button>
+            <button onclick="simulateLogin()">模拟登录</button>
+            <button onclick="clearAuth()">清除认证</button>
+            <div id="authResult" class="result"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="section">
+            <h3>💬 AI聊天功能测试</h3>
+            <input type="text" id="chatMessage" placeholder="输入聊天消息..." value="请解释一下导数的概念">
+            <br>
+            <textarea id="questionContext" placeholder="题目上下文（JSON格式，可选）">{"subject":"数学","difficulty":"medium","content":"求函数f(x)=x²的导数","knowledgePoints":["导数"]}</textarea>
+            <br>
+            <button onclick="testAIChat()">发送AI聊天</button>
+            <button onclick="clearChatMessages()">清空聊天</button>
+            <div class="chat-messages" id="chatMessages"></div>
+            <div id="chatResult" class="result"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="section">
+            <h3>💡 实时答题方案测试</h3>
+            <input type="text" id="solutionSubject" placeholder="学科" value="数学">
+            <input type="text" id="solutionDifficulty" placeholder="难度 (easy/medium/hard)" value="medium">
+            <textarea id="solutionQuestion" placeholder="题目内容">求函数f(x)=x²+2x+1的导数</textarea>
+            <textarea id="solutionOptions" placeholder="选项（每行一个，可选）">A. 2x+2\nB. x²+2\nC. 2x+1\nD. x+2</textarea>
+            <input type="text" id="solutionKnowledgePoints" placeholder="知识点（逗号分隔）" value="导数,函数">
+            <br>
+            <button onclick="testRealTimeSolutions()">生成答题方案</button>
+            <div id="solutionResult" class="result"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="section">
+            <h3>🔍 网络请求监控</h3>
+            <button onclick="startNetworkMonitoring()">开始监控</button>
+            <button onclick="stopNetworkMonitoring()">停止监控</button>
+            <button onclick="clearNetworkLog()">清空日志</button>
+            <div id="networkLog" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        let chatMessages = [];
+        let networkMonitoring = false;
+        let originalFetch = window.fetch;
+
+        // 检查认证状态
+        function checkAuthStatus() {
+            const authStorage = localStorage.getItem('auth-storage');
+            const result = document.getElementById('authResult');
+            
+            if (!authStorage) {
+                result.className = 'result error';
+                result.textContent = '❌ 未找到认证信息';
+                return;
+            }
+            
+            try {
+                const authData = JSON.parse(authStorage);
+                result.className = 'result success';
+                result.textContent = `✅ 认证状态:\n${JSON.stringify(authData, null, 2)}`;
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ 认证数据解析失败: ${error.message}`;
+            }
+        }
+
+        // 模拟登录
+        function simulateLogin() {
+            const mockAuthData = {
+                state: {
+                    user: {
+                        id: 'test-user-id',
+                        email: 'test@example.com',
+                        name: '测试用户'
+                    },
+                    token: 'mock-jwt-token-for-testing',
+                    isAuthenticated: true
+                },
+                version: 0
+            };
+            
+            localStorage.setItem('auth-storage', JSON.stringify(mockAuthData));
+            
+            const result = document.getElementById('authResult');
+            result.className = 'result success';
+            result.textContent = '✅ 模拟登录成功';
+        }
+
+        // 清除认证
+        function clearAuth() {
+            localStorage.removeItem('auth-storage');
+            const result = document.getElementById('authResult');
+            result.className = 'result success';
+            result.textContent = '✅ 认证信息已清除';
+        }
+
+        // 测试AI聊天
+        async function testAIChat() {
+            const message = document.getElementById('chatMessage').value;
+            const contextText = document.getElementById('questionContext').value;
+            const result = document.getElementById('chatResult');
+            
+            if (!message.trim()) {
+                result.className = 'result error';
+                result.textContent = '❌ 请输入聊天消息';
+                return;
+            }
+
+            // 添加用户消息到聊天
+            addChatMessage('user', message);
+            
+            try {
+                let requestBody = { message };
+                
+                // 添加题目上下文（如果有）
+                if (contextText.trim()) {
+                    try {
+                        requestBody.questionContext = JSON.parse(contextText);
+                    } catch (e) {
+                        console.warn('题目上下文JSON解析失败，忽略:', e);
+                    }
+                }
+
+                console.log('发送AI聊天请求:', requestBody);
+                
+                const response = await fetch('/api/ai/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                console.log('AI聊天响应状态:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+
+                const data = await response.json();
+                console.log('AI聊天响应数据:', data);
+                
+                // 添加AI回复到聊天
+                if (data.response) {
+                    addChatMessage('ai', data.response);
+                    result.className = 'result success';
+                    result.textContent = '✅ AI聊天成功';
+                } else {
+                    throw new Error('AI响应中没有response字段');
+                }
+                
+            } catch (error) {
+                console.error('AI聊天失败:', error);
+                addChatMessage('system', `错误: ${error.message}`);
+                result.className = 'result error';
+                result.textContent = `❌ AI聊天失败: ${error.message}`;
+            }
+        }
+
+        // 添加聊天消息
+        function addChatMessage(type, content) {
+            const chatContainer = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}-message`;
+            messageDiv.innerHTML = `
+                <strong>${type === 'user' ? '用户' : type === 'ai' ? 'AI' : '系统'}:</strong><br>
+                ${content}
+                <br><small>${new Date().toLocaleTimeString()}</small>
+            `;
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // 清空聊天消息
+        function clearChatMessages() {
+            document.getElementById('chatMessages').innerHTML = '';
+            chatMessages = [];
+        }
+
+        // 测试实时答题方案
+        async function testRealTimeSolutions() {
+            const subject = document.getElementById('solutionSubject').value;
+            const difficulty = document.getElementById('solutionDifficulty').value;
+            const question = document.getElementById('solutionQuestion').value;
+            const optionsText = document.getElementById('solutionOptions').value;
+            const knowledgePointsText = document.getElementById('solutionKnowledgePoints').value;
+            const result = document.getElementById('solutionResult');
+            
+            if (!question.trim()) {
+                result.className = 'result error';
+                result.textContent = '❌ 请输入题目内容';
+                return;
+            }
+
+            try {
+                const requestBody = {
+                    subject: subject || '数学',
+                    difficulty: difficulty || 'medium',
+                    question: question,
+                    knowledgePoints: knowledgePointsText ? knowledgePointsText.split(',').map(s => s.trim()) : []
+                };
+                
+                // 添加选项（如果有）
+                if (optionsText.trim()) {
+                    const optionStrings = optionsText.split('\n').filter(opt => opt.trim());
+                    // 将字符串数组转换为对象数组格式
+                    requestBody.options = optionStrings.map((option, index) => {
+                        const label = String.fromCharCode(65 + index); // A, B, C, D...
+                        return {
+                            label: label,
+                            content: option.replace(new RegExp(`^${label}\.\\s*`), ''), // 移除选项前缀
+                            isCorrect: false // 默认为false，需要用户手动设置
+                        };
+                    });
+                }
+
+                console.log('发送答题方案请求:', requestBody);
+                
+                // 获取认证token
+                const authStorage = localStorage.getItem('auth-storage');
+                const token = authStorage ? JSON.parse(authStorage).state?.token : null;
+                
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+                
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+                
+                const response = await fetch('/api/ai/solutions', {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(requestBody)
+                });
+
+                console.log('答题方案响应状态:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+
+                const data = await response.json();
+                console.log('答题方案响应数据:', data);
+                
+                if (data.solutions && data.solutions.length > 0) {
+                    result.className = 'result success';
+                    result.textContent = `✅ 答题方案生成成功:\n\n${data.solutions.map((sol, i) => `${i+1}. ${sol}`).join('\n\n')}`;
+                } else {
+                    result.className = 'result error';
+                    result.textContent = '❌ 答题方案响应中没有solutions数据';
+                }
+                
+            } catch (error) {
+                console.error('答题方案生成失败:', error);
+                result.className = 'result error';
+                result.textContent = `❌ 答题方案生成失败: ${error.message}`;
+            }
+        }
+
+        // 开始网络监控
+        function startNetworkMonitoring() {
+            if (networkMonitoring) return;
+            
+            networkMonitoring = true;
+            const logDiv = document.getElementById('networkLog');
+            
+            window.fetch = async function(...args) {
+                const startTime = Date.now();
+                const url = args[0];
+                const options = args[1] || {};
+                
+                logDiv.innerHTML += `\n🌐 [${new Date().toLocaleTimeString()}] 请求: ${url}`;
+                logDiv.innerHTML += `\n   方法: ${options.method || 'GET'}`;
+                if (options.body) {
+                    logDiv.innerHTML += `\n   请求体: ${options.body.substring(0, 200)}${options.body.length > 200 ? '...' : ''}`;
+                }
+                
+                try {
+                    const response = await originalFetch.apply(this, args);
+                    const duration = Date.now() - startTime;
+                    
+                    logDiv.innerHTML += `\n   ✅ 响应: ${response.status} (${duration}ms)`;
+                    logDiv.scrollTop = logDiv.scrollHeight;
+                    
+                    return response;
+                } catch (error) {
+                    const duration = Date.now() - startTime;
+                    logDiv.innerHTML += `\n   ❌ 错误: ${error.message} (${duration}ms)`;
+                    logDiv.scrollTop = logDiv.scrollHeight;
+                    throw error;
+                }
+            };
+            
+            logDiv.innerHTML += `\n🔍 [${new Date().toLocaleTimeString()}] 网络监控已开始`;
+        }
+
+        // 停止网络监控
+        function stopNetworkMonitoring() {
+            if (!networkMonitoring) return;
+            
+            networkMonitoring = false;
+            window.fetch = originalFetch;
+            
+            const logDiv = document.getElementById('networkLog');
+            logDiv.innerHTML += `\n⏹️ [${new Date().toLocaleTimeString()}] 网络监控已停止`;
+        }
+
+        // 清空网络日志
+        function clearNetworkLog() {
+            document.getElementById('networkLog').innerHTML = '';
+        }
+
+        // 页面加载时自动检查认证状态
+        window.onload = function() {
+            checkAuthStatus();
+            console.log('AI功能调试页面已加载');
+        };
+    </script>
+</body>
+</html>

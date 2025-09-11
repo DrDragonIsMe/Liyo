@@ -27,23 +27,34 @@ const LoginPage = () => {
     setIsLoading(true)
 
     try {
-      // 模拟API调用
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // 模拟登录成功
-      const mockUser = {
-        id: '1',
-        email: formData.email,
-        name: '测试用户',
-        createdAt: new Date().toISOString(),
+      // 调用后端登录API
+      const response = await fetch('http://localhost:5001/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || '登录失败')
       }
-      const mockToken = 'mock-jwt-token'
-      
-      login(mockUser, mockToken)
-      toast.success('登录成功！')
-      navigate('/dashboard')
+
+      if (data.success) {
+        const { user, token } = data.data
+        login(user, token)
+        toast.success('登录成功！')
+        navigate('/dashboard')
+      } else {
+        throw new Error(data.error || '登录失败')
+      }
     } catch (error) {
-      toast.error('登录失败，请检查邮箱和密码')
+      toast.error((error as Error).message || '登录失败，请检查邮箱和密码')
     } finally {
       setIsLoading(false)
     }
